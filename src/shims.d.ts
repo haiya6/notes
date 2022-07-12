@@ -1,1 +1,1 @@
-declare var __WXS__: string
+declare var __WXS__: boolean
