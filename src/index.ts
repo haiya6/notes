@@ -1,1 +1,5 @@
-export default {}
+import { to } from './core'
+
+export default {
+  to,
+}
