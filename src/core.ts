@@ -1,5 +1,4 @@
 import Easing, { EasingFunction } from './Easing'
-import rAF from './adapters/rAF'
 import Utils from './Utils'
 
 interface Target {
@@ -17,9 +16,10 @@ interface TweenOptions {
 }
 
 export function to(target: Target, vars: TweenVars, options?: TweenOptions) {
+  options = options || {}
   var startTime = Date.now()
-  var duration = options?.duration ?? 0.5
-  var easing = options?.easing ?? Easing.linear
+  var duration = options.duration || 0.5
+  var easing = options.easing || Easing.linear
 
   var initVars = {} as Record<string, number>
   var targetVars = {} as Record<string, number>
@@ -41,15 +41,5 @@ export function to(target: Target, vars: TweenVars, options?: TweenOptions) {
       if (typeof initVars[key] === 'undefined') return
       target[key] = initVars[key] + (targetVars[key] - initVars[key]) * p
     })
-
-    options?.onUpdate?.()
-
-    if (p < 1) {
-      rAF(ticker)
-    } else {
-      options?.onComplete?.()
-    }
   }
-
-  rAF(ticker)
 }
