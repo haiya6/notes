@@ -1,0 +1,9 @@
+{
+  "name": "promise",
+  "scripts": {
+    "test": "promises-aplus-tests testEntry"
+  },
+  "devDependencies": {
+    "promises-aplus-tests": "^2.1.2"
+  }
+}
