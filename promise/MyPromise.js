@@ -27,7 +27,6 @@ function resolvePromise(promise, x, resolve, reject) {
     }
   } else if (typeof x === 'function' || (x !== null && typeof x === 'object')) {
     // 2.3.3 如果 x 为对象或者函数
-
     let then
     try {
       // 2.3.3.1 把 x.then 赋值给 then
@@ -49,16 +48,16 @@ function resolvePromise(promise, x, resolve, reject) {
           y => {
             if (!called) {
               // 2.3.3.3.3 如果 resolvePromise 和 rejectPromise 均被调用，或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
-              resolvePromise(promise, y, resolve, reject)
               called = true
+              resolvePromise(promise, y, resolve, reject)
             }
           },
           // 2.3.3.3.2 如果 rejectPromise 以据因 r 为参数被调用，则以据因 r 拒绝 promise
           r => {
             if (!called) {
               // 2.3.3.3.3 如果 resolvePromise 和 rejectPromise 均被调用，或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
-              reject(r)
               called = true
+              reject(r)
             }
           }
         )
@@ -68,7 +67,6 @@ function resolvePromise(promise, x, resolve, reject) {
         // 2.3.3.3.4.1 如果 resolvePromise 或 rejectPromise 已经被调用，则忽略之
         if (called) return
         // 2.3.3.3.4.2 否则以 e 为据因拒绝 promise
-        called = true
         reject(e)
       }
     } else {
@@ -92,7 +90,6 @@ class MyPromise {
     this.resolve = this.resolve.bind(this)
     this.reject = this.reject.bind(this)
 
-
     try {
       func(this.resolve, this.reject)
     } catch (err) {
@@ -102,29 +99,23 @@ class MyPromise {
 
   resolve(result) {
     if (this.state === PENDING) {
-      this.state = FULFILLED
-      this.result = result
-
-      if (this.onFulfilledCallbacks.length > 0) {
-        // 在 Node 环境中实现，借助 API 实现微任务
-        process.nextTick(() => {
-          this.onFulfilledCallbacks.splice(0).forEach(cb => cb(this.result))
-        })
-      }
+      // 在 Node 环境中实现，借助 API 实现微任务
+      process.nextTick(() => {
+        this.result = result
+        this.state = FULFILLED
+        this.onFulfilledCallbacks.splice(0).forEach(cb => cb(this.result))
+      })
     }
   }
 
   reject(reason) {
     if (this.state = PENDING) {
-      this.state = REJECTED
-      this.result = reason
-
-      if (this.onRejectedCallbacks.length > 0) {
-        // 在 Node 环境中实现，借助 API 实现微任务
-        process.nextTick(() => {
-          this.onRejectedCallbacks.splice(0).forEach(cb => cb(this.result))
-        })
-      }
+      // 在 Node 环境中实现，借助 API 实现微任务
+      process.nextTick(() => {
+        this.state = REJECTED
+        this.result = reason
+        this.onRejectedCallbacks.splice(0).forEach(cb => cb(this.result))
+      })
     }
   }
 

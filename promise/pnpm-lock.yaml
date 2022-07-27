@@ -1,4 +1,4 @@
-lockfileVersion: 5.4
+lockfileVersion: 5.3
 
 specifiers:
   promises-aplus-tests: ^2.1.2
@@ -30,16 +30,10 @@ packages:
     engines: {node: '>= 0.6.x'}
     dev: true
 
-  /debug/2.2.0_supports-color@1.2.0:
+  /debug/2.2.0:
     resolution: {integrity: sha512-X0rGvJcskG1c3TgSCPqHJ0XJgwlcvOC7elJ5Y0hYuKBZoVqWpAMfLOeIh2UI/DCQ5ruodIjvsugZtjUYUw2pUw==}
-    peerDependencies:
-      supports-color: '*'
-    peerDependenciesMeta:
-      supports-color:
-        optional: true
     dependencies:
       ms: 0.7.1
-      supports-color: 1.2.0
     dev: true
 
   /define-properties/1.1.4:
@@ -344,7 +338,7 @@ packages:
     hasBin: true
     dependencies:
       commander: 2.3.0
-      debug: 2.2.0_supports-color@1.2.0
+      debug: 2.2.0
       diff: 1.4.0
       escape-string-regexp: 1.0.2
       glob: 3.2.11
