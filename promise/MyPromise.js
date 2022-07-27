@@ -3,14 +3,16 @@ const FULFILLED = Symbol('FULFILLED')
 const REJECTED = Symbol('REJECTED')
 
 function resolvePromise(promise, x, resolve, reject) {
-  // 2.3.1 如果 promise 和 x 指向同一对象，以 TypeError 为据因拒绝执行 promise
+  // 2.3.1 如果 promise 和 x 指向同一对象，reject promise with a TypeError as the reason.
   if (x === promise) {
     return reject(new TypeError('巴拉巴拉'))
   }
-  // 2.3.2 如果 x 为 Promise ，则使 promise 接受 x 的状态
+  // 2.3.2 如果 x 为 Promise ，则使 promise 采用它的状态
   if (x instanceof MyPromise) {
+    // 2.3.2.1 如果 x 处于 pending， promise 需保持挂起，知道 x 被 fulfilled 或 rejected
+    // - 2.3.2.2 If/when x is fulfilled, fulfill promise with the same value.
+    // - 2.3.2.3 If/when x is rejected, reject promise with the same reason.
     if (x.state === PENDING) {
-      // 2.3.2.1 如果 x 处于等待态， promise 需保持为等待态直至 x 被执行或拒绝（继续处理结果）
       x.then(
         y => {
           resolvePromise(promise, y, resolve, reject)
@@ -18,18 +20,16 @@ function resolvePromise(promise, x, resolve, reject) {
         reject
       )
     } else if (x.state === FULFILLED) {
-      // 2.3.2.2 如果 x 处于执行态，用相同的值执行 promise
       resolve(x.result)
     } else {
       // rejected
-      // 2.3.2.3 如果 x 处于拒绝态，用相同的据因拒绝 promise
       reject(x.result)
     }
   } else if (typeof x === 'function' || (x !== null && typeof x === 'object')) {
-    // 2.3.3 如果 x 为对象或者函数
+    // 2.3.3 如果 x 为 object or function
+    // - 2.3.3.1 Let then be x.then
     let then
     try {
-      // 2.3.3.1 把 x.then 赋值给 then
       then = x.then
     } catch (e) {
       // 2.3.3.2 如果取 x.then 的值时抛出错误 e ，则以 e 为据因拒绝 promise
