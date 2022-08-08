@@ -4,10 +4,19 @@ import { spawn } from 'child_process'
 import { Plugin, normalizePath, send } from 'vite'
 
 function buildPHPDoc(filename: string): Promise<string> {
+  const { PHP_EXE } = process.env
+  if (!PHP_EXE) {
+    console.log(`找不到 php 可执行文件`)
+    process.exit(1)
+  }
   return new Promise((resolve, reject) => {
-    const cp = spawn('D:\\php8.1.9\\php.exe', [filename])
+    let html = ''
+    const cp = spawn(PHP_EXE, [filename])
     cp.stdout.on('data', chunk => {
-      resolve(chunk.toString())
+      html += chunk.toString()
+    })
+    cp.stdout.on('end', () => {
+      resolve(html)
     })
     cp.on('error', err => reject(err))
   })
