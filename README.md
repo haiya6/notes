@@ -8,3 +8,4 @@
 - [x] [实现 Vue3 中双端 Diff 算法](https://github.com/haiya6/my-vue/blob/main/packages/runtime/src/renderer.ts#L211)
 - [ ] pnpm 和 yarn 相对于 npm 有什么优点
 - [x] [搭建基于 vite 的 php 简单开发框架](https://github.com/haiya6/notes/tree/main/vite-php)
+- [ ] base64 编码，及怎么设计 base32 编码
