@@ -10,5 +10,6 @@
 - [x] base64 编码，及怎么设计 base32 编码
   + Base64 原理参考这些资料，[维基百科](https://zh.wikipedia.org/wiki/Base64)、[掘金](https://juejin.cn/post/6844903698045370376)
   + [自己设计一个 Base32](https://github.com/haiya6/notes/tree/main/mybase32)
-- [ ] webpack 对 ESM 和 CommomJS 模块的处理
+- [ ] Babel 是怎么转为 ESM 为 CommomJS 模块的
+- [ ] CommomJS 模块和 ESM 模块是怎么处理循环依赖的
   
