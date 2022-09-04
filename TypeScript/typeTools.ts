@@ -11,3 +11,12 @@ type isUnknown<T> = unknown extends T
         ? false
         : true
     : false
+
+// 并集
+type Concurrence<A, B> = A | B;
+// 交集
+type Intersection<A, B> = A extends B ? A : never;
+// 差集
+type Difference<A, B> = A extends B ? never : A;
+// 补集
+type Complement<A, B extends A> = Difference<A, B>;

@@ -213,3 +213,12 @@ type v50<T> = (T & {}) extends [boolean] ? '1' : '2'
 // '2'
 type v51 = v50<'xie' | false>
 ```
+
+## infer 约束
+
+在 TS 4.7 引入了对 infer 支持约束的功能：
+
+```ts
+type v52<T> = T extends () => (infer P extends string) ? P : never
+type v53 = v52<() => string>
+```
