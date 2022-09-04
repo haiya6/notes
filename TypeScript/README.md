@@ -114,7 +114,7 @@ assertIsNumber(name)
 name.toFixed()
 ```
 
-## object、Object、{} 的类型兼容
+## object、Object、{} 的类型兼容（之间的 extends 条件判断）
 
 以下操作都成立：
 
@@ -138,15 +138,78 @@ type v31 = {} extends Object ? 1 : 2
 
 在 28-29中，因为“系统设定”的原因，Object 包含了除 Top Level 之外的类型（基础类型、对象、函数等），object 包含了所有非原始类型的类型（数组、对象、函数类型），导致了“你中有我，我中有你”
 
-## unknown 和 any 的类型兼容
-
-以下操作都成立：
+## any、unknown、never 的类型兼容（之间的 extends 条件判断）
 
 ```ts
-type v32 = any extends unknown ? 1 : 2
-type v33 = unknown extends any ? 1 : 2
+// '1'
+type v32 = any extends any ? '1' : '2'
+// '1'
+type v33 = any extends unknown ? '1' : '2'
+// '1' | '2'
+type v34 = any extends never ? '1' : '2'
+// 这里只拿 string 来表示其它的基本类型（除 any、unknown、never 的如 number 等），下同
+// '1' | '2'
+type v35 = any extends string ? '1' : '2'
+
+// '1'
+type v36 = unknown extends any ? '1' : '2'
+// '1'
+type v37 = unknown extends unknown ? '1' : '2'
+// '2'
+type v38 = unknown extends never ? '1' : '2'
+// '2'
+type v39 = unknown extends string ? '1' : '2'
+
+// '1'
+type v40 = never extends any ? '1' : '2'
+// '1'
+type v41 = never extends unknown ? '1' : '2'
+// '1'
+type v42 = never extends never ? '1' : '2'
+// '1'
+type v43 = never extends string ? '1' : '2'
+type v44<T> = T extends string ? '1' : '2'
+// never
+type v45 = v44<never>
 ```
 
-记住。
+可以得出一些结论：
 
-TODO: 12
++ 当 any 作为条件判断参数（extends 左边）的时候，判断条件（extens 右边）是：
+  - any、unknown 时，会返回真结果
+  - 否则，会返回真假结果的联合类型。拿判断条件为 string 举例，any 可以理解为即有存在满足是 string 子类型的情况（如字符串字面量类型），也存在不满足是 string 子类型的情况
++ 当 unknown 作为条件判断参数时候，判断条件时：
+  - any、unknown 时，会返回真结果
+  - 否则，返回假结果
++ 当 never 作为条件判断参数时，都会返回真结果（never 是 TS 中的最底层类型）
+  - 特殊点：在 v45 中，通过泛型传递 never 类型并作为**裸类型**进行条件判断时，会直接返回 never
+
+## 分布式条件类型
+
+当联合类型**通过泛型**传入并进行条件判断时，会将联合类型中的每一个类型都单独拿出来进行条件判断的特性：
+
+```ts
+type v46<T> = T extends boolean ? '1' : '2'
+// "1" | "2"
+type v47 = v46<'xie' | false>
+```
+
+上面代码中，当联合类型 `'xie' | false` **通过泛型**传递给 v44 进行条件判断（extends）时，会将 `'xie'` 和 `false` 这两个类型单独进行判断，并返回他们结果的联合类型
+
+可以通过不让传入的类型通过“裸类型”判断来禁用这一特性，比如可以通过数组包着：
+
+```ts
+type v48<T> = [T] extends [boolean] ? '1' : '2'
+// '2'
+type v49 = v48<'xie' | false>
+```
+
+此时，就是严格判断传入的联合类型 `'xie' | false` 是否为 `boolean` 的子类型，显然不是
+
+还有另外一种方式可以达到同样的效果：
+
+```ts
+type v50<T> = (T & {}) extends [boolean] ? '1' : '2'
+// '2'
+type v51 = v50<'xie' | false>
+```
