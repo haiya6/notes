@@ -53,8 +53,6 @@ function func3(): void {
 }
 ```
 
-TODO
-
 ## 数组类型的标注
 
 在 TypeScript 中，有两种数组标注的方式，是等价的：
