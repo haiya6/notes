@@ -15,7 +15,7 @@ const symbolVal: symbol = Symbol()
 
 ## null 和 undefined
 
-在 JavaScript 中，null 表示”这里有值但是一个空值“，undefined 表示”这里没有值“。
+在 JavaScript 中，null 表示“这里有值但是一个空值”，undefined 表示“这里没有值”。
 
 在 TypeScript 中，null 和 undefined 都是一个具体意义的类型，如同 string、number 一样，在没有开启 `strictNullChecks` 时，他们是其它类型的子类型，比如下面这个例子：
 
