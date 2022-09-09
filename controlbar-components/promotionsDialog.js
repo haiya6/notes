@@ -50,11 +50,6 @@
    */
   var promotions = []
   /**
-   * 记录已出现过的 promotion id
-   * @type {Set<number>}
-   */
-  var appearedPromotionId = new Set()
-  /**
    * @type {MaybeNull<JQuery<HTMLElement>>}
    */
   var $promotionsDialog = null
@@ -136,13 +131,13 @@
   }
 
   /**
-   * @param {HTMLElement | HTMLElement[]} dom
+   * @param {HTMLElement | HTMLElement[]} elOrEls
    */
-  function preventAndStopClick(dom) {
-    if (!Array.isArray(dom)) {
-      dom = [dom]
+  function preventAndStopClick(elOrEls) {
+    if (!Array.isArray(elOrEls)) {
+      elOrEls = [elOrEls]
     }
-    dom.forEach(function (item) {
+    elOrEls.forEach(function (item) {
       item.addEventListener('click', function (event) {
         event.stopPropagation()
         event.preventDefault()
@@ -180,13 +175,13 @@
    * 挂载弹框根容器
    */
   function mountPromotionsDialog() {
-    $promotionsDialog = $('<div class="promotions"></div>')
     $promotionsDialogMask = $('<div class="promotion_mask"></div>')
+    $promotionsDialog = $('<div class="promotions"></div>')
     
     $('.controlbar_component').addClass('above-tips')
     $('.controlbar_component_main').append($promotionsDialogMask).append($promotionsDialog)
-    fadeIn($promotionsDialog)
     fadeIn($promotionsDialogMask)
+    fadeIn($promotionsDialog)
 
     preventAndStopClick($promotionsDialog[0])
   }
@@ -195,24 +190,33 @@
    * 卸载弹框跟容器
    */
   function unmountPromotionsDialog() {
-    $('.controlbar_component').removeClass('above-tips')
-    $('.controlbar_component_main').removeClass(Object.keys(promotionConfig).map(function (name) {
-      return 'component_' + name
-    }))
+    var currentPromotionName = currentInstance && currentInstance.promotionName
 
-    fadeOut($promotionsDialog, function () {
-      if ($promotionsDialog) {
-        $promotionsDialog.remove()
-        $promotionsDialog = null
-      }
-    })
-
-    fadeOut($promotionsDialogMask, function () {
-      if ($promotionsDialogMask) {
-        $promotionsDialogMask.remove()
+    if ($promotionsDialogMask) {
+      fadeOut($promotionsDialogMask, function () {
+        assertDefinedAndNonNull($promotionsDialogMask).remove()
         $promotionsDialogMask = null
-      }
-    })
+      }) 
+    }
+
+    if ($promotionsDialog) {
+      fadeOut($promotionsDialog, function () {
+        promotions.forEach(function (promotion) {
+          if (promotion.instance) {
+            callLifeCycle(promotion.instance, 'beforeUnmount')
+            promotion.instance = undefined
+          }
+        })
+        $('.controlbar_component').removeClass('above-tips')
+        if (currentPromotionName) {
+          $('.controlbar_component_main').removeClass('component_' + currentPromotionName)
+        }
+        assertDefinedAndNonNull($promotionsDialog).remove()
+        $promotionsDialog = null
+      })
+    }
+
+    currentInstance = null
   }
 
   /**
@@ -303,7 +307,7 @@
         
         if (diff <= 0) {
           window.clearInterval(countdownTimer)
-          destroyPromotion(promotion.id)
+          destroyPromotion(promotion.tranId)
           return
         }
 
@@ -349,16 +353,13 @@
    * @return
    */
   function togglePromotion(index) {
-    if (!$promotionsDialog) mountPromotionsDialog()
-
+    // 隐藏当前的 Promotion
     if (currentInstance) {
+      var promotionName = currentInstance.promotionName
       callLifeCycle(currentInstance, 'deactivated')
-      fadeOut(
-        currentInstance.$el, 
-        (function (/** @type {PromotionName} */ name) {
-          $('.controlbar_component_main').removeClass('component_' + name)
-        }).bind(null, currentInstance.promotionName)
-      )
+      fadeOut(currentInstance.$el, function () {
+        $('.controlbar_component_main').removeClass('component_' + promotionName)
+      })
       currentInstance = null
     }
 
@@ -369,7 +370,6 @@
      * @type {MaybeNull<PromotionInstance>}
      */
     var newInstance = null
-
     if (promotion.instance) {
       newInstance = promotion.instance
       callLifeCycle(newInstance, 'activated')
@@ -384,12 +384,11 @@
         callLifeCycle(newInstance, 'mounted')
       }
     }
-
-    // show
+    // Show DOM
     if (newInstance) {
       $('.controlbar_component_main').addClass('component_' + newInstance.promotionName)
       fadeIn(newInstance.$el)
-      currentInstance  = newInstance
+      currentInstance = newInstance
     }
   }
 
@@ -399,59 +398,78 @@
    * @param {Promotion['data']} data 
    */
   function pushPromotion(name, data) {
+    /**
+     * @param {number} tranId 
+     */
+    var isExist = function (tranId) {
+      for(var i = 0; i < promotions.length; i++) {
+        if (promotions[i].tranId === tranId) {
+          return true
+        }
+      }
+      return false
+    }
+
     if (name === 'luckywheel') {
-      var id =  /** @type {LuckywheelData} */ (data).info.tranId
-      if (appearedPromotionId.has(id)) return
+      var tranId = /** @type {LuckywheelData} */ (data).info.tranId
+      if (isExist(tranId)) {
+        return
+      }
       promotions.push({
-        name,
-        id,
+        name: name,
+        tranId: tranId,
         data: /** @type {LuckywheelData} */ (data)
       })
-      appearedPromotionId.add(id)
     } else if (name === 'freespinpromotion') {
-      var id = /** @type {FreespinpromotionData} */ (data).tranId
-      if (appearedPromotionId.has(id)) return
+      var tranId = /** @type {FreespinpromotionData} */ (data).tranId
+      if (isExist(tranId)) {
+        return
+      }
       promotions.push({
-        name,
-        id,
+        name: name,
+        tranId: tranId,
         data: /** @type {FreespinpromotionData} */ (data)
       })
     }
 
-    // 这是第一个 promotion，打开弹框
-    if (promotions.length === 1) {
+    if (!$promotionsDialog) {
+      mountPromotionsDialog()
       togglePromotion(0)
     }
   }
 
   /**
    * 销毁指定的 promotion
-   * @param {number} id
+   * @param {number} tranId
    */
-  function destroyPromotion(id) {
-    var index = findIndex(promotions, function (item) {
-      return item.id === id
+  function destroyPromotion(tranId) {
+    var willDestroyIndex = findIndex(promotions, function (item) {
+      return item.tranId === tranId
     })
 
-    var willDestroyPromotion = promotions[index]
+    var willDestroyPromotion = promotions[willDestroyIndex]
     if (!willDestroyPromotion) return
 
-    promotions.splice(index, 1)
+    // 删除数据
+    promotions.splice(willDestroyIndex, 1)
+
     if (willDestroyPromotion.instance) {
       callLifeCycle(willDestroyPromotion.instance, 'beforeUnmount')
       var $el = willDestroyPromotion.instance.$el
+      // 需要销毁的是当前正在展示的
       if (willDestroyPromotion.instance === currentInstance) {
-        fadeOut($el, function () {
-          if (promotions.length) {
+        // 且只有这一个 Promotion
+        if (promotions.length === 0) {
+          unmountPromotionsDialog()
+        } else {
+          // 卸载 DOM 后切换到下一个
+          fadeOut($el, function () {
             $el.remove()
-          } else {
-            unmountPromotionsDialog()
-          }
-        })
-        if (promotions.length) {
-          togglePromotion(index > promotions.length - 1 ? 0 : index)
+          })
+          togglePromotion(willDestroyIndex > promotions.length - 1 ? 0 : willDestroyIndex)
         }
       } else {
+        // 需要销毁的不是正在展示的，移除 DOM
         $el.remove()
       }
     }
@@ -476,11 +494,4 @@
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_CLOSE, function (/** @type {any} */ data) {
     // TODO
   })
-
-  /**
-   * 1. 弹框允许关闭
-   * 2. 数据需要保存
-   * 3. 切换某一个 promotion 显示
-   * 4. 收到关闭删除数据
-   */
 }()

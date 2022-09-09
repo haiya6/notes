@@ -33,10 +33,7 @@ export interface LuckywheelData {
 }
 
 export type Promotion = {
-  id: number
-  // 在界面上已经没有意义展示，但后台关闭推送消息还没过来
-  // 暂停记住
-  outdated?: boolean
+  tranId: number
   instance?: PromotionInstance
 } & (
   {
