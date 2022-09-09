@@ -1,0 +1,8 @@
+{
+  "name": "controler_components",
+  "version": "1.0.0",
+  "devDependencies": {
+    "@types/jquery": "^3.5.14",
+    "typescript": "^4.8.3"
+  }
+}
