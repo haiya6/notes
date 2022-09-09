@@ -400,36 +400,42 @@
   function pushPromotion(name, data) {
     /**
      * @param {number} tranId 
+     * @param {Promotion['data']} data
+     * @return {boolean}
      */
-    var isExist = function (tranId) {
-      for(var i = 0; i < promotions.length; i++) {
-        if (promotions[i].tranId === tranId) {
-          return true
+    var updateIfExists = function (tranId, data) {
+      var existingIndex = findIndex(promotions, function (promotion) {
+        return promotion.tranId === tranId
+      })
+      if (existingIndex !== -1) {
+        promotions[existingIndex].data = data
+        var instance = promotions[existingIndex].instance
+        if (instance) {
+          callLifeCycle(instance, 'update')
         }
+        return true
       }
       return false
     }
 
     if (name === 'luckywheel') {
       var tranId = /** @type {LuckywheelData} */ (data).info.tranId
-      if (isExist(tranId)) {
-        return
+      if (!updateIfExists(tranId, data)) {
+        promotions.push({
+          name: name,
+          tranId: tranId,
+          data: /** @type {LuckywheelData} */ (data)
+        })
       }
-      promotions.push({
-        name: name,
-        tranId: tranId,
-        data: /** @type {LuckywheelData} */ (data)
-      })
     } else if (name === 'freespinpromotion') {
       var tranId = /** @type {FreespinpromotionData} */ (data).tranId
-      if (isExist(tranId)) {
-        return
+      if (!updateIfExists(tranId, data)) {
+        promotions.push({
+          name: name,
+          tranId: tranId,
+          data: /** @type {FreespinpromotionData} */ (data)
+        })
       }
-      promotions.push({
-        name: name,
-        tranId: tranId,
-        data: /** @type {FreespinpromotionData} */ (data)
-      })
     }
 
     if (!$promotionsDialog) {
