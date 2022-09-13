@@ -27,6 +27,10 @@
   var promotionResource = window.resource_promotion
   // @ts-expect-error
   var spade = window.spade
+  // @ts-expect-error
+  var Locale = window.Locale
+  // @ts-expect-error
+  var TweenMax = window.TweenMax
 
   var emitter = mm.emitter
   var fadeDuration = 500
@@ -68,6 +72,10 @@
    */
   var $promotionsDialog = null
   /**
+   * @type {MaybeNull<JQuery<HTMLElement>>}
+   */
+   var $promotionsDialogMask = null
+  /**
    * 切换指示器
    * @type {MaybeNull<JQuery<HTMLElement>>}
    */
@@ -75,7 +83,11 @@
   /**
    * @type {MaybeNull<JQuery<HTMLElement>>}
    */
-  var $promotionsDialogMask = null
+  var $promotionsTips = null
+   /**
+   * @type {MaybeNull<JQuery<HTMLElement>>}
+   */
+  var $promotionsTipsMask = null
   /**
    * 当前正在展示的 promotion instance
    * @type {MaybeNull<PromotionInstance>}
@@ -83,12 +95,13 @@
   var currentInstance = null
 
   /**
+   * assertDefinedAndNonNull
    * 类型工具函数，没有实际逻辑作用，在 jsdoc 中使用类似 ts 的非空断言
    * @template T
    * @param {T} value
    * @returns {T extends null | undefined ? never : T}
    */
-  function assertDefinedAndNonNull(value) {
+  function assert(value) {
     if (value === undefined || value === null) throw new Error()
     return /** @type {*} */ (value)
   }
@@ -189,6 +202,9 @@
     })
   }
 
+  /**
+   * promotion 自动切换
+   */
   function startAutoToggle() {
     if (swiperTimer) destroyAutoToggle()
     swiperTimer = window.setInterval(function () {
@@ -202,6 +218,9 @@
     }, 5000)
   }
 
+  /**
+   * 停止 promotion 自动切换
+   */
   function destroyAutoToggle() {
     if (swiperTimer) {
       window.clearInterval(swiperTimer)
@@ -219,7 +238,7 @@
     // 指示器
     $promotionsIndicators = $('<ul class="promotions-indicators"></ul>')
     promotions.forEach(function () {
-      assertDefinedAndNonNull($promotionsIndicators).append('<li class="indicator"></li>')
+      assert($promotionsIndicators).append('<li class="indicator"></li>')
     })
     $promotionsIndicators[0].addEventListener('click', function (event) {
       var target = /** @type {HTMLElement} */ (event.target)
@@ -248,29 +267,29 @@
   function unmountPromotionsDialog() {
     var currentPromotionName = currentInstance && currentInstance.promotionName
 
-    if ($promotionsDialogMask) {
-      $promotionsDialogMask.fadeOut(fadeDuration, function () {
-        assertDefinedAndNonNull($promotionsDialogMask).remove()
-        $promotionsDialogMask = null
-      })
-    }
+    assert($promotionsDialogMask).fadeOut(fadeDuration, function () {
+      assert($promotionsDialogMask).remove()
+      $promotionsDialogMask = null
+    })
 
-    if ($promotionsDialog) {
-      $promotionsDialog.fadeOut(fadeDuration, function () {
-        promotions.forEach(function (promotion) {
-          if (promotion.instance) {
-            callLifeCycle(promotion.instance, 'beforeUnmount')
-            promotion.instance = undefined
-          }
-        })
-        $('.controlbar_component').removeClass('above-tips')
-        if (currentPromotionName) {
-          $('.controlbar_component_main').removeClass('component_' + currentPromotionName)
+    assert($promotionsDialog).fadeOut(fadeDuration, function () {
+      promotions.forEach(function (promotion) {
+        if (promotion.instance) {
+          callLifeCycle(promotion.instance, 'beforeUnmount')
+          promotion.instance = undefined
         }
-        assertDefinedAndNonNull($promotionsDialog).remove()
-        $promotionsDialog = null
       })
-    }
+      $('.controlbar_component').removeClass('above-tips')
+      if (currentPromotionName) {
+        $('.controlbar_component_main').removeClass('component_' + currentPromotionName)
+      }
+      assert($promotionsDialog).remove()
+      $promotionsDialog = null
+
+      if (currentPromotionName) {
+        showPromotionTips(currentPromotionName)
+      }
+    })
 
     currentInstance = null
   }
@@ -279,7 +298,7 @@
    * @param {PromotionName} name 
    * @return {JQuery<HTMLElement>}
    */
-  function createContentFromTemplate(name) {
+  function createPromotionContent(name) {
     var classBaseName = promotionConfig[name].classBaseName
     var maxWidth = promotionConfig[name].maxWidth
     var template =
@@ -328,7 +347,7 @@
    * @return {PromotionInstance}
    */
   function createLuckywheelPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('luckywheel')
+    var $el = createPromotionContent('luckywheel')
     var instance = promotion.instance = /** @type {PromotionInstance} */ ({
       $el: $el,
       promotionName: promotion.name,
@@ -424,7 +443,7 @@
    * @return {PromotionInstance}
    */
   function createFreespinPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('freespinpromotion')
+    var $el = createPromotionContent('freespinpromotion')
     var instance = promotion.instance = /** @type {PromotionInstance} */ ({
       $el: $el,
       promotionName: promotion.name,
@@ -515,7 +534,7 @@
    * @return {PromotionInstance}
    */
   function createRedpacketPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('redpacket')
+    var $el = createPromotionContent('redpacket')
     var instance = promotion.instance = /** @type {PromotionInstance} */ ({
       $el: $el,
       promotionName: promotion.name,
@@ -618,7 +637,7 @@
    * @return {PromotionInstance}
    */
   function createRedpacketNewPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('redpacketnew')
+    var $el = createPromotionContent('redpacketnew')
     var instance = promotion.instance = /** @type {PromotionInstance} */ ({
       $el: $el,
       promotionName: promotion.name,
@@ -721,7 +740,7 @@
    * @return {PromotionInstance}
    */
   function createTournamentPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('tournament')
+    var $el = createPromotionContent('tournament')
     var instance = promotion.instance = /** @type {PromotionInstance} */ ({
       $el: $el,
       promotionName: promotion.name,
@@ -874,7 +893,7 @@
         newInstance = createTournamentPromotionInstance(promotion)
       }
       if (newInstance) {
-        assertDefinedAndNonNull($promotionsDialog).append(newInstance.$el)
+        assert($promotionsDialog).append(newInstance.$el)
         callLifeCycle(newInstance, 'mounted')
       }
     }
@@ -883,7 +902,7 @@
       $('.controlbar_component_main').addClass('component_' + newInstance.promotionName)
       newInstance.$el.hide().fadeIn(fadeDuration)
       // 切换指示器
-      assertDefinedAndNonNull($promotionsIndicators).find('.indicator').each(function (indicatorIndex, indicatorEl) {
+      assert($promotionsIndicators).find('.indicator').each(function (indicatorIndex, indicatorEl) {
         if (indicatorIndex === index) {
           $(indicatorEl).addClass('active')
         } else {
@@ -970,7 +989,7 @@
       }
     }
 
-    assertDefinedAndNonNull($promotionsIndicators).append('<li class="indicator"></li>')
+    assert($promotionsIndicators).append('<li class="indicator"></li>')
     if (promotions.length === 1) togglePromotion(0)
   }
 
@@ -989,7 +1008,7 @@
     // 删除数据
     promotions.splice(willDestroyIndex, 1)
     // 删除指示器
-    assertDefinedAndNonNull($promotionsIndicators).find('.indicator').eq(willDestroyIndex).remove()
+    assert($promotionsIndicators).find('.indicator').eq(willDestroyIndex).remove()
     // 移除 DOM
     if (willDestroyPromotion.instance) {
       callLifeCycle(willDestroyPromotion.instance, 'beforeUnmount')
@@ -1011,6 +1030,100 @@
         $el.remove()
       }
     }
+  }
+
+  /**
+   * @param {PromotionName} name 
+   * @returns 
+   */
+  function showPromotionTips(name) {
+    // isRemainCount
+    if ((spade.content.setting.freeGame && spade.content.setting.freeGame.remainingCount != undefined && spade.content.setting.freeGame.remainingCount != 0) || (spade.content.remainingCount != undefined && spade.content.remainingCount != 0)) return
+    if(spade.betInfo.isAuto || spade.betInfo.isFree) return
+    // _promotionDisable
+    if (!spade.content.setting.freeGame && !spade.betInfo.isFree && !spade.content.setting.bonusGame) return
+    spade.content.canTouchSpace = false
+
+    var getString = function () {
+      /** @type {string} */
+      var str = Locale.getString("TXT_PROMOTION_TIPS_" + name.toUpperCase())
+      var reg = new RegExp("\\[\\[.+\\]\\]", "g")
+      str = str.replace(reg, function (word) {
+        word = word.substring(2, word.length - 2)
+        return '<span>' + word + '</span>'
+      })
+      str = str.replace("{0}", 'TODO').replace(/%d/g, "<br>")
+      return str
+    }
+
+    $promotionsTipsMask = $('<div class="controlbar_promotiontips_mask controlbar_quit_mask"></div>')
+    $promotionsTips = $(
+      '<div class="controlbar_promotiontips controlbar_quit clearfix">' +
+      '    <div class="quit_text">' +
+      '        <p>' + getString() + '</p>' +
+      '    </div>' +
+      '    <div class="quit_btn">' +
+      '        <div class="btn_no">' + Locale.getString("TXT_CHNAGECREDIT_NO") + '</div>' +
+      '        <div class="btn_yes">' + Locale.getString("TXT_CHNAGECREDIT_YES") + '</div>' +
+      '    </div>' +
+      '</div>'
+    )
+    
+    $promotionsTips.find('.btn_no')[0].addEventListener('click', function () {
+      destroyPromotionTips()
+    })
+    $promotionsTips.find('.btn_yes')[0].addEventListener('click', function () {
+      destroyPromotionTips(function () {
+        // TODO: emit
+      })
+    })
+
+    $('TODO').append($promotionsTipsMask).append($promotionsTips)
+
+    new TweenMax.to({ scale: 0, opacity: 0 }, 0.2, {
+      scale: 1,
+      opacity: 1,
+      onUpdate: function () {
+        assert($promotionsTipsMask).css({
+          opacity: this.target.opacity
+        })
+        assert($promotionsTips).css({
+          transform: 'translate(-50%,-50%) scale(' + this.target.scale + ')',
+          'transform-origin': 'center center',
+          opacity: this.target.opacity
+        })
+      }
+    })
+  }
+
+  /**
+   * @param {() => void} [callback]
+   */
+  function destroyPromotionTips(callback) {
+    if (!$promotionsTips) return
+
+    new TweenMax.to({ scale: 1, alpha: 1 }, 0.2, {
+      scale: 0,
+      alpha: 0,
+      onUpdate: function () {
+        assert($promotionsTips).css({
+          transform: 'translate(-50%,-50%) scale(' + this.target.scale + ')',
+          'transform-origin': 'center center',
+          opacity: this.target.opacity
+        })
+        assert($promotionsTipsMask).css({
+          opacity: this.target.opacity
+        })
+      },
+      onComplete: function () {
+        assert($promotionsTips).remove()
+        assert($promotionsTipsMask).remove()
+        $promotionsTips = null
+        $promotionsTipsMask = null
+        spade.content.canTouchSpace = true
+        callback && callback()
+      }
+    })
   }
 
   // -25轮盘推送
