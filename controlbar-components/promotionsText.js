@@ -1,32 +1,35 @@
 // @ts-check
 
-/**
- * @template T
- * @typedef {import('./promotionsDialog').MaybeNull<T>} MaybeNull
- */
-
-/**
- * @typedef {import('./promotionsDialog').LifeCycle} LifeCycle
- * @typedef {import('./promotionsDialog').PromotionInstance} PromotionInstance
- * @typedef {import('./promotionsDialog').PromotionName} PromotionName
- * @typedef {import('./promotionsDialog').PromotionConfig} PromotionConfig
- * @typedef {import('./promotionsDialog').LuckywheelData} LuckywheelData
- * @typedef {import('./promotionsDialog').FreespinpromotionData} FreespinpromotionData
- * @typedef {import('./promotionsDialog').RedpacketData} RedpacketData
- * @typedef {import('./promotionsDialog').RedpacketNewData} RedpacketNewData
- * @typedef {import('./promotionsDialog').TournamentData} TournamentData
- * @typedef {import('./promotionsDialog').Promotion} Promotion
- */
-
  ; void function () {
+  /**
+   * @template T
+   * @typedef {import('./promotion').MaybeNull<T>} MaybeNull
+   */
+
+  /**
+   * @typedef {import('./promotion').LifeCycle} LifeCycle
+   * @typedef {import('./promotion').PromotionInstance} PromotionInstance
+   * @typedef {import('./promotion').PromotionName} PromotionName
+   * @typedef {import('./promotion').PromotionConfig} PromotionConfig
+   * @typedef {import('./promotion').PromotionDataMap} PromotionDataMap
+   * @typedef {import('./promotion').Promotion} Promotion
+   */
+
   // @ts-expect-error
   var mm = window.mm
-  // @ts-expect-error
-  var Service = window.Service
   // @ts-expect-error
   var promotionResource = window.resource_promotion
   // @ts-expect-error
   var spade = window.spade
+  // @ts-expect-error
+  var Locale = window.Locale
+  // @ts-expect-error
+  var pushProxy = window.pushProxy
+  var promotionUtils = window.promotionUtils
+  // @ts-expect-error
+  var TweenMax = window.TweenMax
+  // @ts-expect-error
+  var LuckWheel2 = window.LuckWheel2
 
   var emitter = mm.emitter
   var fadeDuration = 500
@@ -62,11 +65,15 @@
   /**
    * @type {Promotion[]}
    */
-  var promotions = []
+  var promotions = pushProxy.promotions
   /**
    * @type {MaybeNull<JQuery<HTMLElement>>}
    */
   var $promotionsDialog = null
+  /**
+   * @type {MaybeNull<JQuery<HTMLElement>>}
+   */
+  var $promotionsDialogMask = null
   /**
    * 切换指示器
    * @type {MaybeNull<JQuery<HTMLElement>>}
@@ -75,7 +82,11 @@
   /**
    * @type {MaybeNull<JQuery<HTMLElement>>}
    */
-  var $promotionsDialogMask = null
+  var $promotionsTips = null
+   /**
+   * @type {MaybeNull<JQuery<HTMLElement>>}
+   */
+  var $promotionsTipsMask = null
   /**
    * 当前正在展示的 promotion instance
    * @type {MaybeNull<PromotionInstance>}
@@ -83,12 +94,13 @@
   var currentInstance = null
 
   /**
+   * assertDefinedAndNonNull
    * 类型工具函数，没有实际逻辑作用，在 jsdoc 中使用类似 ts 的非空断言
    * @template T
    * @param {T} value
    * @returns {T extends null | undefined ? never : T}
    */
-  function assertDefinedAndNonNull(value) {
+  function assert(value) {
     if (value === undefined || value === null) throw new Error()
     return /** @type {*} */ (value)
   }
@@ -130,6 +142,15 @@
   }
 
   /**
+   * 获取当前示例所在的索引，不存在返回 -1
+   */
+  function getCurrentIndex() {
+    return findIndex(promotions, function (p) {
+      return p.textInstance === currentInstance
+    })
+  }
+
+  /**
    * @param {number} time 
    */
   function getTimes(time) {
@@ -162,6 +183,25 @@
   }
 
   /**
+   * @param {JQuery<HTMLElement>} $el
+   * @param {Promotion} promotion
+   * @return {PromotionInstance}
+   */
+  function initInstance($el, promotion) {
+    var instance = {
+      $el: $el,
+      promotion: promotion,
+      mounted: [],
+      beforeUnmount: [],
+      activated: [],
+      deactivated: [],
+      update: []
+    }
+    promotion.textInstance = instance
+    return instance
+  }
+
+  /**
    * @param {PromotionInstance} ins 
    * @param {LifeCycle} lifeCycle 
    */
@@ -189,19 +229,21 @@
     })
   }
 
+  /**
+   * promotion 自动切换
+   */
   function startAutoToggle() {
     if (swiperTimer) destroyAutoToggle()
     swiperTimer = window.setInterval(function () {
-      var currentIndex = findIndex(promotions, function (p) {
-        return p.instance === currentInstance
-      })
+      var currentIndex = getCurrentIndex()
       if (currentIndex === -1) destroyAutoToggle()
-      togglePromotion(
-        (currentIndex + 1) % promotions.length
-      )
+      togglePromotion((currentIndex + 1) % promotions.length)
     }, 5000)
   }
 
+  /**
+   * 停止 promotion 自动切换
+   */
   function destroyAutoToggle() {
     if (swiperTimer) {
       window.clearInterval(swiperTimer)
@@ -216,19 +258,20 @@
     $promotionsDialogMask = $('<div class="promotion_mask"></div>').hide().fadeIn(fadeDuration)
     $promotionsDialog = $('<div class="promotions"></div>').hide().fadeIn(fadeDuration)
 
+    // 关闭按钮
+    var $btnClose = $('<div class="btn-close">x</div>')
+    $promotionsDialog.append($btnClose)
+    $btnClose[0].addEventListener('click', unmountPromotionsDialog)
+
     // 指示器
     $promotionsIndicators = $('<ul class="promotions-indicators"></ul>')
-    promotions.forEach(function () {
-      assertDefinedAndNonNull($promotionsIndicators).append('<li class="indicator"></li>')
-    })
+    // 绑定指示器点击事件
     $promotionsIndicators[0].addEventListener('click', function (event) {
       var target = /** @type {HTMLElement} */ (event.target)
       if (!$(target).hasClass('indicator')) {
         return
       }
-      destroyAutoToggle()
       togglePromotion($(target).index())
-      startAutoToggle()
     })
     $promotionsDialog.append($promotionsIndicators)
 
@@ -237,41 +280,34 @@
 
     preventAndStopClick($promotionsDialog[0])
     $promotionsDialogMask[0].addEventListener('click', unmountPromotionsDialog)
-
-    // 自动切换
-    startAutoToggle()
   }
 
   /**
    * 卸载弹框跟容器
    */
   function unmountPromotionsDialog() {
-    var currentPromotionName = currentInstance && currentInstance.promotionName
+    var currentPromotion = assert(currentInstance).promotion
 
-    if ($promotionsDialogMask) {
-      $promotionsDialogMask.fadeOut(fadeDuration, function () {
-        assertDefinedAndNonNull($promotionsDialogMask).remove()
-        $promotionsDialogMask = null
-      })
-    }
+    assert($promotionsDialogMask).fadeOut(fadeDuration, function () {
+      assert($promotionsDialogMask).remove()
+      $promotionsDialogMask = null
+    })
 
-    if ($promotionsDialog) {
-      $promotionsDialog.fadeOut(fadeDuration, function () {
-        promotions.forEach(function (promotion) {
-          if (promotion.instance) {
-            callLifeCycle(promotion.instance, 'beforeUnmount')
-            promotion.instance = undefined
-          }
-        })
-        $('.controlbar_component').removeClass('above-tips')
-        if (currentPromotionName) {
-          $('.controlbar_component_main').removeClass('component_' + currentPromotionName)
+    assert($promotionsDialog).fadeOut(fadeDuration, function () {
+      promotions.forEach(function (promotion) {
+        if (promotion.textInstance) {
+          callLifeCycle(promotion.textInstance, 'beforeUnmount')
+          promotion.textInstance = undefined
         }
-        assertDefinedAndNonNull($promotionsDialog).remove()
-        $promotionsDialog = null
       })
-    }
+      $('.controlbar_component').removeClass('above-tips')
+      $('.controlbar_component_main').removeClass('component_' + currentPromotion.name)
+      assert($promotionsDialog).remove()
+      $promotionsDialog = null
+      judgShowPromotionTips(currentPromotion)
+    })
 
+    destroyAutoToggle()
     currentInstance = null
   }
 
@@ -279,7 +315,7 @@
    * @param {PromotionName} name 
    * @return {JQuery<HTMLElement>}
    */
-  function createContentFromTemplate(name) {
+  function createPromotionContent(name) {
     var classBaseName = promotionConfig[name].classBaseName
     var maxWidth = promotionConfig[name].maxWidth
     var template =
@@ -328,70 +364,54 @@
    * @return {PromotionInstance}
    */
   function createLuckywheelPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('luckywheel')
-    var instance = promotion.instance = /** @type {PromotionInstance} */ ({
-      $el: $el,
-      promotionName: promotion.name,
-      mounted: [],
-      beforeUnmount: [],
-      activated: [],
-      deactivated: [],
-      update: []
-    })
-    /** @type {number} */
-    var countdownTimer
+    var $el = createPromotionContent('luckywheel')
+    var instance = initInstance($el, promotion)
+    var data = /** @type {PromotionDataMap['luckywheel']} */ (promotion.data)
+    var /** @type {number} */ start, /** @type {number} */ end
+
+    /**
+     * @param {string[]} times 
+     */
+    var update = function (times) {
+      $el.find('.cont_times li').each(function (index, element) {
+        if (index <= 3) {
+          $(element).text(times[index])
+        }
+      })
+    }
+
+    var countdownHandler = function () {
+      var diff = end - Date.now()
+      if (diff <= 0) {
+        destroyCountdown()
+        update(getTimes(0))
+        return
+      }
+      update(getTimes(diff))
+    }
 
     var startCountdown = function () {
-      var data = /** @type {LuckywheelData} */ (promotion.data)
-      if (countdownTimer) destroyCountdown()
-      var start = +toDate(data.serverTime)
-      var delay = Date.now() - start
-      var end = +toDate(data.info.endTime) + delay
-
-      var handler = function () {
-        var now = Date.now()
-        var diff = end - now
-        
-        if (diff <= 0) {
-          destroyCountdown()
-          destroyPromotion(promotion.tranId)
-          return
-        }
-
-        var times = getTimes(diff)
-        $el.find('.cont_times li').each(function (index, element) {
-          if (index <= 3) {
-            $(element).text(times[index])
-          }
-        })
-      }
-
-      handler()
-      countdownTimer = window.setInterval(handler, 500)
+      start = +toDate(data.serverTime)
+      end = +toDate(data.info.endTime) + (Date.now() - start)
+      destroyCountdown()
+      promotionUtils.ticker.add(countdownHandler)
     }
 
     var destroyCountdown = function () {
-      window.clearInterval(countdownTimer)
+      promotionUtils.ticker.remove(countdownHandler)
     }
 
     var updateRules = function () {
-      var data = /** @type {LuckywheelData} */ (promotion.data)
-
       $el.find('.cont_units p').html(
         promotionResource.getImgNums(data.tu, 'lucky_units_num', 'luckywheel')
       )
-
       $el.find('.cont_prize .prize_total').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.tr), 'lucky_prize_num', 'luckywheel')
       )
-
-      var topPrizeNums = data.info.prizes.slice(0).sort(function (a, b) {
-        return b - a
-      }).shift()
+      var topPrizeNums = data.info.prizes.slice(0).sort(function (a, b) { return b - a }).shift()
       $el.find('.cont_prize .prize_top').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(topPrizeNums), 'lucky_prize_num', 'luckywheel')
       )
-
       $el.find('.cont_turn .prize_turnover').text(
         spade.betInfo.currency + ' ' + mm.formatAmount(data.info.turnover)
       )
@@ -424,63 +444,51 @@
    * @return {PromotionInstance}
    */
   function createFreespinPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('freespinpromotion')
-    var instance = promotion.instance = /** @type {PromotionInstance} */ ({
-      $el: $el,
-      promotionName: promotion.name,
-      mounted: [],
-      beforeUnmount: [],
-      activated: [],
-      deactivated: [],
-      update: []
-    })
-    /** @type {number} */
-    var countdownTimer
+    var $el = createPromotionContent('freespinpromotion')
+    var instance = initInstance($el, promotion)
+    var data = /** @type {PromotionDataMap['freespinpromotion']} */ (promotion.data)
+    var /** @type {number} */ start, /** @type {number} */ end
+
+    /**
+     * @param {string[]} times 
+     */
+    var update = function (times) {
+      $el.find('.cont_times li').each(function (index, element) {
+        if (index <= 3) {
+          $(element).text(times[index])
+        }
+      })
+    }
+
+    var countdownHandler = function () {
+      var diff = end - Date.now()
+      if (diff <= 0) {
+        destroyCountdown()
+        update(getTimes(0))
+        return
+      }
+      update(getTimes(diff))
+    }
 
     var startCountdown = function () {
-      var data = /** @type {FreespinpromotionData} */ (promotion.data)
-      if (countdownTimer) destroyCountdown()
-      var start = +toDate(data.serverTime)
-      var delay = Date.now() - start
-      var end = +toDate(data.endDate) + delay
-
-      var handler = function () {
-        var now = Date.now()
-        var diff = end - now
-        
-        if (diff <= 0) {
-          destroyCountdown()
-          destroyPromotion(promotion.tranId)
-          return
-        }
-
-        var times = getTimes(diff)
-        $el.find('.cont_times li').each(function (index, element) {
-          if (index <= 3) {
-            $(element).text(times[index])
-          }
-        })
-      }
-
-      handler()
-      countdownTimer = window.setInterval(handler, 500)
+      start = +toDate(data.list[0].serverTime)
+      end = +toDate(data.list[0].endDate) + (Date.now() - start)
+      destroyCountdown()
+      promotionUtils.ticker.add(countdownHandler)
     }
     
     var destroyCountdown = function () {
-      window.clearInterval(countdownTimer)
+      promotionUtils.ticker.remove(countdownHandler)
     }
 
     var updateRules = function () {
-      var data = /** @type {FreespinpromotionData} */ (promotion.data)
-
       $el.find('.cont_units p').html(
-        promotionResource.getImgNums(data.tu, 'freespin_num', 'freespinpromotion')
+        promotionResource.getImgNums(data.list[0].tu, 'freespin_num', 'freespinpromotion')
       )
-
       $el.find('.cont_turn .prize_turnover').html(
         promotionResource.getImgNums(
-          data.turnover ? 
-            (spade.betInfo.currency + ' ' + mm.formatAmount(data.turnover)) 
+          data.list[0].turnover ? 
+            (spade.betInfo.currency + ' ' + mm.formatAmount(data.list[0].turnover)) 
             : '-',
           'freespin_turn_num',
           'freespinpromotion'
@@ -515,67 +523,53 @@
    * @return {PromotionInstance}
    */
   function createRedpacketPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('redpacket')
-    var instance = promotion.instance = /** @type {PromotionInstance} */ ({
-      $el: $el,
-      promotionName: promotion.name,
-      mounted: [],
-      beforeUnmount: [],
-      activated: [],
-      deactivated: [],
-      update: []
-    })
-    /** @type {number} */
-    var countdownTimer
+    var $el = createPromotionContent('redpacket')
+    var instance = initInstance($el, promotion)
+    var data = /** @type {PromotionDataMap['redpacket']} */ (promotion.data)
+    var /** @type {number} */ start, /** @type {number} */ end
+
+    /**
+     * @param {string[]} times 
+     */
+    var update = function (times) {
+      $el.find('.cont_times li').each(function (index, element) {
+        if (index <= 3) {
+          $(element).html(promotionResource.getImgNums(times[index], 'red_sec_num', 'redpacket'))
+        }
+      })
+    }
+
+    var countdownHandler = function () {
+      var diff = end - Date.now()
+      if (diff <= 0) {
+        destroyCountdown()
+        update(getTimes(0))
+        return
+      }
+      update(getTimes(diff))
+    }
 
     var startCountdown = function () {
-      var data = /** @type {RedpacketData} */ (promotion.data)
-      if (countdownTimer) destroyCountdown()
-      var start = +toDate(data.serverTime)
-      var delay = Date.now() - start
-      var end = +toDate(data.resultedTime) + delay
-
-      var handler = function () {
-        var now = Date.now()
-        var diff = end - now
-        
-        if (diff <= 0) {
-          destroyCountdown()
-          destroyPromotion(promotion.tranId)
-          return
-        }
-
-        var times = getTimes(diff)
-        $el.find('.cont_times li').each(function (index, element) {
-          if (index <= 3) {
-            $(element).html(promotionResource.getImgNums(times[index], 'red_sec_num', 'redpacket'))
-          }
-        })
-      }
-
-      handler()
-      countdownTimer = window.setInterval(handler, 500)
+      start = +toDate(data.serverTime)
+      end = +toDate(data.resultedTime) + Date.now() - start
+      destroyCountdown()
+      promotionUtils.ticker.add(countdownHandler)
     }
     
     var destroyCountdown = function () {
-      window.clearInterval(countdownTimer)
+      promotionUtils.ticker.remove(countdownHandler)
     }
 
     var updateRules = function () {
-      var data = /** @type {RedpacketData} */ (promotion.data)
-
       $('.cont_units p').html(
         promotionResource.getImgNums(data.tu, 'red_units_num', 'redpacket')
       )
-
       $('.cont_prize .prize_total').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.tr), 'lucky_prize_num', 'redpacket')
       )
-
       $('.cont_prize .prize_top').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.lma), 'lucky_prize_num', 'redpacket')
       )
-
       $('.cont_turn .prize_turnover').text(
         spade.betInfo.currency + ' ' + mm.formatAmount(data.turnover)
       )
@@ -618,70 +612,55 @@
    * @return {PromotionInstance}
    */
   function createRedpacketNewPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('redpacketnew')
-    var instance = promotion.instance = /** @type {PromotionInstance} */ ({
-      $el: $el,
-      promotionName: promotion.name,
-      mounted: [],
-      beforeUnmount: [],
-      activated: [],
-      deactivated: [],
-      update: []
-    })
-    /** @type {number} */
-    var countdownTimer
+    var $el = createPromotionContent('redpacketnew')
+    var instance = initInstance($el, promotion)
+    var data = /** @type {PromotionDataMap['redpacketnew']} */ (promotion.data)
+    var /** @type {number} */ start, /** @type {number} */ end
+
+    /**
+     * @param {string[]} times 
+     */
+    var update = function (times) {
+      $el.find('.cont_times li').each(function (index, element) {
+        if (index <= 3) {
+          $(element).html(
+            promotionResource.getImgNums(times[index], 'red_sec_num', 'redpacketnew')
+          )
+        }
+      })
+    }
+
+    var countdownHandler = function () {
+      var diff = end - Date.now()
+      if (diff <= 0) {
+        destroyCountdown()
+        update(getTimes(0))
+        return
+      }
+      update(getTimes(diff))
+    }
 
     var startCountdown = function () {
-      var data = /** @type {RedpacketNewData} */ (promotion.data)
-      if (countdownTimer) destroyCountdown()
-      if (!data.serverTime) return
-      var start = +toDate(data.serverTime)
-      var delay = Date.now() - start
-      var end = +toDate(data.packetInfo.resultedTime) + delay
-
-      var handler = function () {
-        var now = Date.now()
-        var diff = end - now
-        
-        if (diff <= 0) {
-          destroyCountdown()
-          destroyPromotion(promotion.tranId)
-          return
-        }
-
-        var times = getTimes(diff)
-        $el.find('.cont_times li').each(function (index, element) {
-          if (index <= 3) {
-            $(element).html(
-              promotionResource.getImgNums(times[index], 'red_sec_num', 'redpacketnew')
-            )
-          }
-        })
-      }
-
-      handler()
-      countdownTimer = window.setInterval(handler, 500)
+      start = +toDate(data.serverTime)
+      end = +toDate(data.packetInfo.resultedTime) + (Date.now() - start)
+      destroyCountdown()
+      promotionUtils.ticker.add(countdownHandler)
     }
     
     var destroyCountdown = function () {
-      window.clearInterval(countdownTimer)
+      promotionUtils.ticker.remove(countdownHandler)
     }
 
     var updateRules = function () {
-      var data = /** @type {RedpacketNewData} */ (promotion.data)
-
       $('.cont_units p').html(
         promotionResource.getImgNums(data.packetInfo.tu, 'red_units_num', 'redpacketnew')
       )
-
       $('.cont_prize .prize_total').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.packetInfo.tr, ''), 'lucky_prize_num', 'redpacketnew')
       )
-
       $('.cont_prize .prize_top').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.packetInfo.lma, ''), 'lucky_prize_num', 'redpacketnew')
       )
-      
       $('.cont_turn .prize_turnover').text(
         spade.betInfo.currency + ' ' + mm.formatAmount(data.packetInfo.turnovers[0], '')
       )
@@ -721,67 +700,53 @@
    * @return {PromotionInstance}
    */
   function createTournamentPromotionInstance(promotion) {
-    var $el = createContentFromTemplate('tournament')
-    var instance = promotion.instance = /** @type {PromotionInstance} */ ({
-      $el: $el,
-      promotionName: promotion.name,
-      mounted: [],
-      beforeUnmount: [],
-      activated: [],
-      deactivated: [],
-      update: []
-    })
-    /** @type {number} */
-    var countdownTimer
+    var $el = createPromotionContent('tournament')
+    var instance = initInstance($el, promotion)
+    var data = /** @type {PromotionDataMap['tournament']} */ (promotion.data)
+    var /** @type {number} */ start, /** @type {number} */ end
+
+    /**
+     * @param {string[]} times 
+     */
+     var update = function (times) {
+      $el.find('.cont_times li').each(function (index, element) {
+        if (index <= 3) {
+          $(element).text(times[index])
+        }
+      })
+    }
+
+    var countdownHandler = function () {
+      var diff = end - Date.now()
+      if (diff <= 0) {
+        destroyCountdown()
+        update(getTimes(0))
+        return
+      }
+      update(getTimes(diff))
+    }
 
     var startCountdown = function () {
-      var data = /** @type {TournamentData} */ (promotion.data)
-      if (countdownTimer) destroyCountdown()
-      var start = +toDate(data.serverTime)
-      var delay = Date.now() - start
-      var end = +toDate(data.endDate) + delay
-
-      var handler = function () {
-        var now = Date.now()
-        var diff = end - now
-        
-        if (diff <= 0) {
-          destroyCountdown()
-          destroyPromotion(promotion.tranId)
-          return
-        }
-
-        var times = getTimes(diff)
-        $el.find('.cont_times li').each(function (index, element) {
-          if (index <= 3) {
-            $(element).text(times[index])
-          }
-        })
-      }
-
-      handler()
-      countdownTimer = window.setInterval(handler, 500)
+      start = +toDate(data.serverTime)
+      end = +toDate(data.endDate) + (Date.now() - start)
+      destroyCountdown()
+      promotionUtils.ticker.add(countdownHandler)
     }
 
     var destroyCountdown = function () {
-      window.clearInterval(countdownTimer)
+      promotionUtils.ticker.remove(countdownHandler)
     }
 
     var updateRules = function () {
-      var data = /** @type {TournamentData} */ (promotion.data)
-
       $el.find('.cont_units p').html(
         promotionResource.getImgNums(data.cp, 'tour_units_num', 'tournament')
       )
-
       $el.find('.cont_prize .prize_total').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.ttlp), 'tour_prize_num', 'tournament')
       )
-
       $el.find('.cont_prize .prize_top').html(
         promotionResource.getImgNums(spade.betInfo.currency + ' ' + mm.formatAmount(data.tpp), 'tour_prize_num', 'tournament')
       )
-
       /**
        * @type {number}
        */
@@ -833,57 +798,61 @@
    * @return
    */
   function togglePromotion(index) {
-    // 隐藏当前的 Promotion
-    if (currentInstance) {
-      var promotionName = currentInstance.promotionName
-      callLifeCycle(currentInstance, 'deactivated')
-      currentInstance.$el.fadeOut(fadeDuration, function () {
-        if (!currentInstance || currentInstance.promotionName !== promotionName) {
-          $('.controlbar_component_main').removeClass('component_' + promotionName)
-        }
-      })
-      currentInstance = null
-    }
+    var targetPromotion = promotions[index]
 
-    var promotion = promotions[index]
-
-    if (!promotion) {
+    if (!targetPromotion) {
       console.warn('错误的 promotion index：' + index)
       console.warn('promotions len:', promotions.length)
       unmountPromotionsDialog()
       return
     }
 
+    if (targetPromotion.textInstance === currentInstance) {
+      return
+    }
+
+    // 隐藏当前的 Promotion
+    if (currentInstance) {
+      var promotionName = currentInstance.promotion.name
+      callLifeCycle(currentInstance, 'deactivated')
+      assert(currentInstance.$el).fadeOut(fadeDuration, function () {
+        if (!currentInstance || currentInstance.promotion.name !== promotionName) {
+          $('.controlbar_component_main').removeClass('component_' + promotionName)
+        }
+      })
+      currentInstance = null
+    }
+
     /**
      * @type {MaybeNull<PromotionInstance>}
      */
     var newInstance = null
-    if (promotion.instance) {
-      newInstance = promotion.instance
+    if (targetPromotion.textInstance) {
+      newInstance = targetPromotion.textInstance
       callLifeCycle(newInstance, 'activated')
     } else {
-      if (promotion.name === 'luckywheel') {
-        newInstance = createLuckywheelPromotionInstance(promotion)
-      } else if (promotion.name === 'freespinpromotion') {
-        newInstance = createFreespinPromotionInstance(promotion)
-      } else if (promotion.name === 'redpacket') {
-        newInstance = createRedpacketPromotionInstance(promotion)
-      } else if (promotion.name === 'redpacketnew') {
-        newInstance = createRedpacketNewPromotionInstance(promotion)
-      } else if (promotion.name === 'tournament') {
-        newInstance = createTournamentPromotionInstance(promotion)
+      if (targetPromotion.name === 'luckywheel') {
+        newInstance = createLuckywheelPromotionInstance(targetPromotion)
+      } else if (targetPromotion.name === 'freespinpromotion') {
+        newInstance = createFreespinPromotionInstance(targetPromotion)
+      } else if (targetPromotion.name === 'redpacket') {
+        newInstance = createRedpacketPromotionInstance(targetPromotion)
+      } else if (targetPromotion.name === 'redpacketnew') {
+        newInstance = createRedpacketNewPromotionInstance(targetPromotion)
+      } else if (targetPromotion.name === 'tournament') {
+        newInstance = createTournamentPromotionInstance(targetPromotion)
       }
       if (newInstance) {
-        assertDefinedAndNonNull($promotionsDialog).append(newInstance.$el)
+        assert($promotionsDialog).append(assert(newInstance.$el))
         callLifeCycle(newInstance, 'mounted')
       }
     }
     // Show DOM
     if (newInstance) {
-      $('.controlbar_component_main').addClass('component_' + newInstance.promotionName)
-      newInstance.$el.hide().fadeIn(fadeDuration)
+      $('.controlbar_component_main').addClass('component_' + newInstance.promotion.name)
+      assert(newInstance.$el).hide().fadeIn(fadeDuration)
       // 切换指示器
-      assertDefinedAndNonNull($promotionsIndicators).find('.indicator').each(function (indicatorIndex, indicatorEl) {
+      assert($promotionsIndicators).find('.indicator').each(function (indicatorIndex, indicatorEl) {
         if (indicatorIndex === index) {
           $(indicatorEl).addClass('active')
         } else {
@@ -895,171 +864,174 @@
   }
 
   /**
-   * 收到一个 promotion
-   * @param {PromotionName} name 
-   * @param {Promotion['data']} data 
+   * @param {Promotion} promotion 
+   * @returns 
    */
-  function pushPromotion(name, data) {
-    if (!$promotionsDialog) mountPromotionsDialog()
+  function judgShowPromotionTips(promotion) {
+    // isRemainCount
+    if ((spade.content.setting.freeGame && spade.content.setting.freeGame.remainingCount != undefined && spade.content.setting.freeGame.remainingCount != 0) || (spade.content.remainingCount != undefined && spade.content.remainingCount != 0)) return
+    if(spade.betInfo.isAuto || spade.betInfo.isFree) return
 
-    /**
-     * @param {number} tranId 
-     * @param {Promotion['data']} data
-     * @return {boolean}
-     */
-    var updateIfExists = function (tranId, data) {
-      var existingIndex = findIndex(promotions, function (promotion) {
-        return promotion.tranId === tranId
+    spade.content.canTouchSpace = false
+
+    var times = 0
+    if (promotion.name === 'luckywheel') {
+      times = promotion.data.spinRemain
+    } else if (promotion.name === 'redpacket') {
+      if (promotion.data.access) times = 1
+    } else if (promotion.name === 'redpacketnew') {
+      var canReceive = promotion.data.packetAcctInfo.canReceive
+      if (canReceive && canReceive.length > 0) {
+        times = 1
+      }
+    } else if (promotion.name === 'freespinpromotion') {
+      times = promotion.data.list.reduce(function (total, current) {
+        total += current.freeSpin.spinCount
+        return total
+      }, 0)
+    }
+
+    if (times === 0) return
+
+    var getString = function () {
+      /** @type {string} */
+      var str = Locale.getString("TXT_PROMOTION_TIPS_" + promotion.name.toUpperCase())
+      var reg = new RegExp("\\[\\[.+\\]\\]", "g")
+      str = str.replace(reg, function (word) {
+        word = word.substring(2, word.length - 2)
+        return '<span>' + word + '</span>'
       })
-      if (existingIndex !== -1) {
-        promotions[existingIndex].data = data
-        var instance = promotions[existingIndex].instance
-        if (instance) {
-          callLifeCycle(instance, 'update')
+      str = str.replace("{0}", times + '').replace(/%d/g, "<br>")
+      return str
+    }
+
+    $promotionsTipsMask = $('<div class="controlbar_promotiontips_mask controlbar_quit_mask"></div>')
+    $promotionsTips = $(
+      '<div class="controlbar_promotiontips controlbar_quit clearfix">' +
+      '    <div class="quit_text">' +
+      '        <p>' + getString() + '</p>' +
+      '    </div>' +
+      '    <div class="quit_btn">' +
+      '        <div class="btn_no">' + Locale.getString("TXT_CHNAGECREDIT_NO") + '</div>' +
+      '        <div class="btn_yes">' + Locale.getString("TXT_CHNAGECREDIT_YES") + '</div>' +
+      '    </div>' +
+      '</div>'
+    )
+    
+    $promotionsTips.find('.btn_no')[0].addEventListener('click', function () {
+      destroyPromotionTips()
+    })
+
+    $promotionsTips.find('.btn_yes')[0].addEventListener('click', function () {
+      var afterDestroy = function () {
+        var openData
+        if (promotion.name === 'luckywheel') {
+          openData = new LuckWheel2({ tranId: promotion.tranId })
         }
-        return true
+        if (openData) {
+          emitter.emit('promotion-open', openData)
+        }
       }
-      return false
-    }
+      destroyPromotionTips(afterDestroy)
+    })
 
-    if (name === 'luckywheel') {
-      var tranId = /** @type {LuckywheelData} */ (data).info.tranId
-      if (!updateIfExists(tranId, data)) {
-        promotions.push({
-          name: name,
-          tranId: tranId,
-          data: /** @type {LuckywheelData} */ (data)
-        })
-      }
-    } else if (name === 'freespinpromotion') {
-      var tranId = /** @type {FreespinpromotionData} */ (data).tranId
-      if (!updateIfExists(tranId, data)) {
-        promotions.push({
-          name: name,
-          tranId: tranId,
-          data: /** @type {FreespinpromotionData} */ (data)
-        })
-      }
-    } else if (name === 'redpacket') {
-      var tranId = /** @type {RedpacketData} */ (data).tranId
-      if (!updateIfExists(tranId, data)) {
-        promotions.push({
-          name: name,
-          tranId: tranId,
-          data: /** @type {RedpacketData} */ (data)
-        })
-      }
-    } else if (name === 'redpacketnew') {
-      var tranId = /** @type {RedpacketNewData} */ (data).packetInfo.tranId
-      if (!updateIfExists(tranId, data)) {
-        promotions.push({
-          name: name,
-          tranId: tranId,
-          data: /** @type {RedpacketNewData} */ (data)
-        })
-      }
-    } else {
-      // tournament
-      var tranId = /** @type {TournamentData} */ (data).tranId
-      if (!updateIfExists(tranId, data)) {
-        promotions.push({
-          name: name,
-          tranId: tranId,
-          data: /** @type {TournamentData} */ (data)
-        })
-      }
-    }
+    $('#controlbarH5').append($promotionsTipsMask).append($promotionsTips)
 
-    assertDefinedAndNonNull($promotionsIndicators).append('<li class="indicator"></li>')
-    if (promotions.length === 1) togglePromotion(0)
+    new TweenMax.to({ scale: 0, opacity: 0 }, 0.2, {
+      scale: 1,
+      opacity: 1,
+      onUpdate: function () {
+        assert($promotionsTipsMask).css({
+          opacity: this.target.opacity
+        })
+        assert($promotionsTips).css({
+          transform: 'translate(-50%,-50%) scale(' + this.target.scale + ')',
+          'transform-origin': 'center center',
+          opacity: this.target.opacity
+        })
+      }
+    })
   }
 
   /**
-   * 销毁指定的 promotion，并在有下一个 promotion 时候切换到下一个，没有下一个时关闭整个弹框
-   * @param {number} tranId
+   * @param {() => void} [callback]
    */
-  function destroyPromotion(tranId) {
-    var willDestroyIndex = findIndex(promotions, function (item) {
-      return item.tranId === tranId
+  function destroyPromotionTips(callback) {
+    if (!$promotionsTips) return
+
+    new TweenMax.to({ scale: 1, alpha: 1 }, 0.2, {
+      scale: 0,
+      alpha: 0,
+      onUpdate: function () {
+        assert($promotionsTips).css({
+          transform: 'translate(-50%,-50%) scale(' + this.target.scale + ')',
+          'transform-origin': 'center center',
+          opacity: this.target.opacity
+        })
+        assert($promotionsTipsMask).css({
+          opacity: this.target.opacity
+        })
+      },
+      onComplete: function () {
+        assert($promotionsTips).remove()
+        assert($promotionsTipsMask).remove()
+        $promotionsTips = null
+        $promotionsTipsMask = null
+        spade.content.canTouchSpace = true
+        callback && callback()
+      }
     })
+  }
 
-    var willDestroyPromotion = promotions[willDestroyIndex]
-    if (!willDestroyPromotion) return
+  emitter.on('promotion:new', function () {
+    // 挂载容器
+    if (!$promotionsDialog) {
+      mountPromotionsDialog()
+      // 添加已存在的 promotion 对应的指示器
+      promotions.slice(1).forEach(function () {
+        assert($promotionsIndicators).append('<li class="indicator"></li>')
+      })
+    }
+    // 添加当前的指示器点
+    assert($promotionsIndicators).append('<li class="indicator"></li>')
 
-    // 删除数据
-    promotions.splice(willDestroyIndex, 1)
+    // ADJUST: 可能会产生连续的闪烁
+    togglePromotion(0)
+    startAutoToggle()
+  })
+
+  emitter.on('promotion:updated', function (/** @type {Promotion} */ promotion) {
+    if (promotion.textInstance) {
+      callLifeCycle(promotion.textInstance, 'update')
+    }
+  })
+
+  /**
+   * promotion 是删除的 promotion
+   * index 是删除前所在的索引
+   */
+  emitter.on('promotion:removed', function (/** @type {Promotion} */ promotion, /** @type {number} */ index) {
+    if (!$promotionsDialog) return
+    if (!promotion.textInstance) return
     // 删除指示器
-    assertDefinedAndNonNull($promotionsIndicators).find('.indicator').eq(willDestroyIndex).remove()
+    assert($promotionsIndicators).find('.indicator[data-id="' + promotion.tranId +'"]').remove()
     // 移除 DOM
-    if (willDestroyPromotion.instance) {
-      callLifeCycle(willDestroyPromotion.instance, 'beforeUnmount')
-      var $el = willDestroyPromotion.instance.$el
+    if (promotion.textInstance) {
+      callLifeCycle(promotion.textInstance, 'beforeUnmount')
+      var $el = assert(promotion.textInstance.$el)
       // 需要销毁的是当前正在展示的
-      if (willDestroyPromotion.instance === currentInstance) {
+      if (promotion.textInstance === currentInstance) {
         // 且只有这一个 Promotion
         if (promotions.length === 0) {
           unmountPromotionsDialog()
         } else {
           // 卸载 DOM 后切换到下一个
-          $el.fadeOut(function () {
-            $el.remove()
-          })
-          togglePromotion(willDestroyIndex > promotions.length - 1 ? 0 : willDestroyIndex)
+          $el.fadeOut(function () { $el.remove() })
+          togglePromotion(index > promotions.length - 1 ? 0 : index)
         }
       } else {
-        // 需要销毁的不是正在展示的，移除 DOM
         $el.remove()
       }
     }
-  }
-
-  // -25轮盘推送
-  emitter.on(Service._Commands.WHEEL_OPEN, function (/** @type {LuckywheelData} */ data) {
-    pushPromotion('luckywheel', data)
   })
-  // -26 轮盘关闭
-  emitter.on(Service._Commands.WHEEL_CLOSE, function (/** @type {any}*/ data) {
-    destroyPromotion(data.tranId)
-  })
-
-  // freespin 推送开启
-  emitter.on(Service._Commands.FREESPIN_PROMOTION_OPEN, function (/** @type {FreespinpromotionData} */ data) {
-    pushPromotion('freespinpromotion', data)
-  })
-  // freespin 推送关闭
-  emitter.on(Service._Commands.FREESPIN_PROMOTION_CLOSE, function (/** @type {any} */ data) {
-    destroyPromotion(data.tranId)
-  })
-
-  // -13 红包推送
-  emitter.on(Service._Commands.DRAW_MSG, function (/** @type {RedpacketData} */ data) {
-    pushPromotion('redpacket', data)
-  })
-  // -14 红包关闭推送
-  emitter.on(Service._Commands.DRAW_CLOSE, function (/** @type {any} */ data) {
-    destroyPromotion(data.tranId)
-  })
-
-  // -38 红包推送
-  emitter.on(Service._Commands.REDPACKETNEW_OPEN, function (/** @type {RedpacketNewData} */ data) {
-    pushPromotion('redpacketnew', data)
-  })
-  // -39 红包关闭推送
-  emitter.on(Service._Commands.REDPACKETNEW_CLOSE, function (/** @type {any} */ data) {
-    destroyPromotion(data.tranId)
-  })
-
-  // 排行榜推送开启
-  emitter.on(Service._Commands.TOUR_OPEN, function (/** @type {TournamentData} */ data) {
-    pushPromotion('tournament', data)
-  })
-  // 排行榜推送关闭
-  emitter.on(Service._Commands.TOUR_CLOSE, function (/** @type {any} */ data) {
-    destroyPromotion(data.tranId)
-  })
-
-  // TODO: REMOVE
-  window.promotions = promotions
-  window.togglePromotion = togglePromotion
-  window.destroyPromotion = destroyPromotion
 }()
