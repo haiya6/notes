@@ -1,6 +1,6 @@
 // @ts-check
 
- ; void function () {
+; void function () {
   /**
    * @template T
    * @typedef {import('./promotion').MaybeNull<T>} MaybeNull
