@@ -1,4 +1,11 @@
 export type MaybeNull<T> = T | null
+
+export type DeepPartial<T> = {
+  [P in keyof T]?: DeepPartial<T[P]>
+}
+
+type LifeCycleHook = () => void
+
 export type LifeCycle = 
   // 已挂载 DOM
   'mounted'
@@ -10,18 +17,20 @@ export type LifeCycle =
   | 'deactivated' 
   // 数据更新（后台推送了与当前同 tranId 的数据）
   | 'update'
-export type PromotionName = 'freespinpromotion' | 'redpacket' | 'luckywheel' | 'redpacketnew' | 'tournament'
+
 export type PromotionConfig = {
   [p in PromotionName]: {
     classBaseName: string
     maxWidth: number
   }
 }
+
 export type PromotionInstance = {
-  [p in LifeCycle]: (() => void)[]
+  [p in LifeCycle]: LifeCycleHook[]
 } & {
-  $el: JQuery<HTMLElement>
-  promotionName: PromotionName
+  $el: MaybeNull<JQuery<HTMLElement>>
+  disabled?: boolean
+  promotion: Promotion
 }
 
 export interface FreespinpromotionData {
@@ -34,6 +43,10 @@ export interface FreespinpromotionData {
   // totalUnit
   tu: number
   turnover: number
+  freeSpin: {
+    spinCount: number
+  }
+  promotionCode: string
 }
 
 export interface RedpacketData {
@@ -49,6 +62,8 @@ export interface RedpacketData {
   tr: number
   // limitMaxAmount
   lma: number
+  // -18 推送
+  access?: boolean
 }
 
 export interface RedpacketNewData {
@@ -73,9 +88,19 @@ export interface RedpacketNewData {
   serverTime: string
 }
 
+export interface RedpacketNewLevelData {
+  tranId: number
+  packetAcctInfo: {
+    canReceive: {
+      level: number
+    }[]
+  }
+}
+
 export interface LuckywheelData {
   languages: string[]
   serverTime: string
+  spinRemain: number
   info: {
     tranId: number
     beginTime: string
@@ -111,28 +136,33 @@ export interface TournamentData {
   }>
 }
 
+export interface CloseData {
+  tranId: number
+}
+
+export type PromotionDataMap = {
+  'freespinpromotion': Pick<FreespinpromotionData, 'tranId'> & { list: Array<FreespinpromotionData> }
+  'redpacket': RedpacketData
+  'redpacketnew': RedpacketNewData & DeepPartial<RedpacketNewLevelData>
+  'luckywheel': LuckywheelData
+  'tournament': TournamentData
+}
+
+export type PromotionName = keyof PromotionDataMap
+
+export type PromotionDataStruct<T extends PromotionName> = {
+  name: T
+  data: PromotionDataMap[T]
+  dataUpdater?: (((oldData: PromotionDataMap[T]) => void | PromotionDataMap[T]))[]
+}
+
 export type Promotion = {
   tranId: number
-  instance?: PromotionInstance
+  textInstance?: PromotionInstance
 } & (
-  {
-    name: 'freespinpromotion',
-    data: FreespinpromotionData
-  }
-  | {
-    name: 'redpacket',
-    data: RedpacketData
-  }
-  | {
-    name: 'redpacketnew'
-    data: RedpacketNewData
-  }
-  | {
-    name: 'luckywheel',
-    data: LuckywheelData
-  }
-  | {
-    name: 'tournament',
-    data: TournamentData
-  }
+  PromotionDataStruct<'freespinpromotion'>
+  | PromotionDataStruct<'redpacket'>
+  | PromotionDataStruct<'redpacketnew'>
+  | PromotionDataStruct<'luckywheel'>
+  | PromotionDataStruct<'tournament'>
 )
