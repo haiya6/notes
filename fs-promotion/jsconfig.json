@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "DOM",
+      "ES2015"
+    ],
+    "strict": true,
+    "baseUrl": "."
+  },
+  "include": [
+    "**/*"
+  ]
+}
