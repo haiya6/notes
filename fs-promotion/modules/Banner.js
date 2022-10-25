@@ -2,12 +2,10 @@
 
 /**
  * @class
- * @param {PromotionSource[]} promotionSources
- * @param {Emitter} emitter
+ * @param {PromotionAPI} api
  */
-function PromotionBanner(promotionSources, emitter) {
-  this.promotionSources = promotionSources
-  this.emitter = emitter
+function PromotionBanner(api) {
+  this.api = api
   /**
    * @type {JQuery<HTMLElement> | undefined}
    */
@@ -35,29 +33,6 @@ function PromotionBanner(promotionSources, emitter) {
    * @type {number | undefined}
    */
   this.autoToggerTimer
-
-  this.setup()
-}
-
-PromotionBanner.prototype.setup = function () {
-  var ctx = this
-
-  this.emitter.on(PromotionEvents.SelfUpdate, function (/** @type {Promotion} */ promotion) {
-    var component = ctx.getComponentByPromotion(promotion)
-    if (!component) return
-    promotionUtils.handleShouldMountComponent(component, ctx.appendBanner.bind(ctx), ctx.removeBanner.bind(ctx))
-  })
-}
-
-/**
- * @param {Promotion} promotion
- */
-PromotionBanner.prototype.getComponentByPromotion = function (promotion) {
-  var source = promotionUtils.find(this.promotionSources, function (item) {
-    return item.promotion.tranId === promotion.tranId
-  })
-  if (!source || !source.instance) return
-  return source.instance.bannerComponent
 }
 
 PromotionBanner.prototype.mountContainer = function () {
@@ -89,6 +64,7 @@ PromotionBanner.prototype.mountContainer = function () {
   // 绑定关闭事件
   this.$body.find('.area-btn')[0].addEventListener('click', function () {
     ctx.unmount()
+    ctx.api.openCategory()
   })
 
   $('.controlbar_mobile_info').append(this.$root)
@@ -111,7 +87,7 @@ PromotionBanner.prototype.unmountContainer = function () {
  */
 PromotionBanner.prototype.unmount = function () {
   this.components.forEach(function (component) {
-    if (component.onBeforeUnmount) component.onBeforeUnmount()
+    if (component.$$el && component.onBeforeUnmount) component.onBeforeUnmount()
   })
   this.unmountContainer()
 }
@@ -195,7 +171,7 @@ PromotionBanner.prototype.toggleBanner = function (targetIndex) {
 
   // 显示新的 Promotion banner
   if (!targetComponent.$$el) {
-    targetComponent.$$el = targetComponent.render()
+    targetComponent.$$el = targetComponent.initialRender()
     assert(this.$body).find('.area-cont').append(targetComponent.$$el)
     if (targetComponent.onMounted) targetComponent.onMounted()
   } else {
@@ -214,6 +190,7 @@ PromotionBanner.prototype.toggleBanner = function (targetIndex) {
 }
 
 PromotionBanner.prototype.startOrRestartAutoToggleTimer = function () {
+  return
   var ctx = this
   this.destroyAutoToggleTimer()
   this.autoToggerTimer = window.setInterval(function () {

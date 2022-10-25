@@ -1,84 +1,143 @@
 // @ts-check
 
-;(function () {
+; (function () {
+  var define = promotionUtils.define
+
   var service = Service.create()
+  var emitter = new Emitter()
+
+  /** @type {Promotion[]} */
+  var promotions = []
+
+  /** @type {Map<Promotion, PromotionComponent>} */
+  var promotion2BannerComponent = new Map()
+
+  /** @type {Map<Promotion, PromotionComponent>} */
+  var promotion2TipComponent = new Map()
+
+  /** @type {Map<PromotionName, PromotionNS>} */
+  var PromotionName2PromotionNS = new Map([
+    [PromotionNames.Tournament, Tournament],
+    [PromotionNames.FreeSpin, FreeSpin],
+  ])
+
+  // expose ---
+  define(window, 'promotionEmitter', emitter)
 
   /**
-   * @type PromotionSource[]
+   * @type {PromotionAPI}
    */
-  var sources = []
-  var emitter = new Emitter()
-  
-  var promotionBanner = new PromotionBanner(sources, emitter)
-  var promotionTip = new PromotionTip(sources, emitter)
-  var promotionCategory = new PromotionCategory(sources, emitter)
+  var api = {
+    defineBannerComponent: function (/** @type {any} */ options) {
+      options.mount = function () {
+        promotionBanner.appendBanner(options)
+      }
+      options.unmount = function () {
+        promotionBanner.removeBanner(options)
+      }
+      return options
+    },
+    defineTipComponent: function (/** @type {any} */ options) {
+      options.mount = function () {
+        promotionTip.appendTip(options)
+      }
+      options.unmount = function () {
+        promotionTip.removeTip(options)
+      }
+      return options
+    },
+    defineMainComponent: function (/** @type {any} */ options) {
+      options.mount = function () {
+        promotionCategory.appendItem(options)
+      }
+      options.unmount = function () {
+        promotionCategory.removeItem(options)
+      }
+      return options
+    },
+    openCategory: function () {
+      promotionCategory.open()
+    },
+    useCategoryDetailModal: function (promotionName, $content, options) {
+      return promotionCategory.useCategoryDetailModal(promotionName, $content, options)
+    }
+  }
+
+  var promotionBanner = new PromotionBanner(api)
+  var promotionTip = new PromotionTip(api)
+  var promotionCategory = new PromotionCategory(api)
 
   /**
    * @param {Promotion} promotion
    */
-  function addSource(promotion) {
-    /**
-     * @type {PromotionInstance}
-     */
-    var instance
-    if (promotion.name === PromotionNames.FreeSpin) {
-      instance = /** @type {any} */ (new FreeSpinPromotion(/** @type {FreeSpinPromotion} */ (promotion), emitter))
-    } else if (promotion.name === PromotionNames.Tournament) {
-      instance = /** @type {any} */ (new TournamentPromotion(/** @type {TournamentPromotion} */ (promotion), emitter))
-    } else {
-      throw new Error('未知的 Promotion name')
+  function addPromotion(promotion) {
+    promotions.push(promotion)
+    var ns = PromotionName2PromotionNS.get(promotion.name)
+    if (!ns) return
+
+    if (ns.createBannerComponent) {
+      promotion2BannerComponent.set(promotion, ns.createBannerComponent(promotion, api))
     }
-    /**
-     * @type {PromotionSource}
-     */
-    var source = { promotion: promotion, instance: instance }
-    sources.push(source)
-    // 避免在 Promotion 的构造函数中执行逻辑，因为构造函数执行时，上面的 push 方法还没有执行
-    // 其它地方在使用 sources 时候，就会查询不到导致异常
-    source.instance.setup()
+    
+    if (ns.createTipComponent) {
+      promotion2TipComponent.set(promotion, ns.createTipComponent(promotion, api))
+    }
   }
 
-  /**
-   * @param {PromotionSource} source 
-   */
-  function notifyComponentUpdates(source) {
-    /**
-     * @param {PromotionComponent} [component]
-     */
-    var callUpdateHookIfMounted = function (component) {
-      if (component && component.$$el) {
-        if (component.onUpdated) component.onUpdated()
-      }
-    }
-    if (!source || !source.instance) return
-    callUpdateHookIfMounted(source.instance.bannerComponent)
-    callUpdateHookIfMounted(source.instance.tipComponent)
-    callUpdateHookIfMounted(source.instance.contentComponent)
-  }
+  // function notifyComponentUpdates(source) {
+  //   /**
+  //    * @param {PromotionComponent} [component]
+  //    */
+  //   var callUpdateHookIfMounted = function (component) {
+  //     if (component && component.$$el) {
+  //       if (component.onUpdated) component.onUpdated()
+  //     }
+  //   }
+  //   if (!source || !source.instance) return
+  //   callUpdateHookIfMounted(source.instance.bannerComponent)
+  //   callUpdateHookIfMounted(source.instance.tipComponent)
+  // }
 
   /**
    * @param {Promotion['tranId']} tranId
    */
-  function removeSource(tranId) {
-    var source = promotionUtils.find(sources, function (item) {
-      return item.promotion.tranId === tranId
+  function removePromotion(tranId) {
+    var willRemoveIndex = promotionUtils.findIndex(promotions, function (item) {
+      return item.tranId === tranId
     })
-    if (!source) return
-    if (promotionBanner.mounted && source.instance.bannerComponent) {
-      promotionBanner.removeBanner(source.instance.bannerComponent)
+    if (willRemoveIndex === -1) return
+    var promotion = promotions[willRemoveIndex]
+
+    var bannerComponent = promotion2BannerComponent.get(promotion)
+    if (promotionBanner.mounted && bannerComponent) {
+      promotionBanner.removeBanner(bannerComponent)
     }
-    if (promotionTip.mounted && source.instance.tipComponent) {
-      promotionTip.removeTip(source.instance.tipComponent)
+
+    var tipComponent = promotion2TipComponent.get(promotion)
+    if (promotionTip.mounted && tipComponent) {
+      promotionTip.removeTip(tipComponent)
     }
-    if (promotionCategory.mounted && source.instance.contentComponent) {
-      promotionCategory.removeItem(source.instance.contentComponent)
-    }
+
+    // 移除数据
+    promotions.splice(willRemoveIndex, 1)
+    promotion2BannerComponent.delete(promotion)
+    promotion2TipComponent.delete(promotion)
   }
+
+  emitter.on(PromotionEvents.BetChanged, function () {
+    promotion2TipComponent.forEach(function (component) {
+      emitter.emit(PromotionEvents.TipComponentUpdate, component)
+    })
+  })
+
+  // emitter.on(PromotionEvents.CloseBanner, function () {
+  //   promotionBanner.unmount()
+  // })
 
   // freespin
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_OPEN, function (/** @type {any} */ data) {
     promotionResourceLoader.load(PromotionNames.FreeSpin, data.languages, function () {
-      addSource({
+      addPromotion({
         $receiveTimestamp: Date.now(),
         name: PromotionNames.FreeSpin,
         tranId: data.tranId,
@@ -91,13 +150,13 @@
   })
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_CLOSE, function (/** @type {any} */ data) {
     // TODO: 校验 tranId 正确性
-    removeSource(data.tranId)
+    removePromotion(data.tranId)
   })
 
   // tournament
   service.bindPushEvent(Service._Commands.TOUR_OPEN, function (/** @type {any} */data) {
     promotionResourceLoader.load(PromotionNames.Tournament, data.languages, function () {
-      addSource({
+      addPromotion({
         $receiveTimestamp: Date.now(),
         name: PromotionNames.Tournament,
         tranId: data.tranId,
@@ -107,6 +166,6 @@
   })
   service.bindPushEvent(Service._Commands.TOUR_CLOSE, function (/** @type {any} */data) {
     // TODO: 校验 tranId 正确性
-    removeSource(data.tranId)
+    removePromotion(data.tranId)
   })
 })();

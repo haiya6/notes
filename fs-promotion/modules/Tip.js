@@ -2,12 +2,10 @@
 
 /**
  * @class
- * @param {PromotionSource[]} promotionSources
- * @param {Emitter} emitter
+ * @param {PromotionAPI} api
  */
-function PromotionTip(promotionSources, emitter) {
-  this.promotionSources = promotionSources
-  this.emitter = emitter
+function PromotionTip(api) {
+  this.api = api
 
   /**
    * @type {PromotionComponent[]}
@@ -27,29 +25,6 @@ function PromotionTip(promotionSources, emitter) {
    * @type {any}
    */
   this.scrollIns
-
-  this.setup()
-}
-
-PromotionTip.prototype.setup = function () {
-  var ctx = this
-
-  this.emitter.on(PromotionEvents.SelfUpdate, function (/** @type {Promotion} */ promotion) {
-    var component = ctx.getComponentByPromotion(promotion)
-    if (!component) return
-    promotionUtils.handleShouldMountComponent(component, ctx.appendTip.bind(ctx), ctx.removeTip.bind(ctx))
-  })
-}
-
-/**
- * @param {Promotion} promotion
- */
-PromotionTip.prototype.getComponentByPromotion = function (promotion) {
-  var source = promotionUtils.find(this.promotionSources, function (item) {
-    return item.promotion.tranId === promotion.tranId
-  })
-  if (!source || !source.instance || !source.instance.tipComponent) return
-  return source.instance.tipComponent
 }
 
 PromotionTip.prototype.mountContainer = function () {
@@ -133,7 +108,7 @@ PromotionTip.prototype.appendTip = function (component) {
   var assert = promotionUtils.assert
   if (!this.mounted) this.mountContainer()
   this.components.push(component)
-  component.$$el = component.render()
+  component.$$el = component.initialRender()
   assert(this.$body).find('.tips-info').append(component.$$el)
   this.tryInitOrRefreshScroll()
   if (component.onMounted) component.onMounted()

@@ -2,10 +2,11 @@
   "compilerOptions": {
     "lib": [
       "DOM",
-      "ES2015"
+      "ESNext"
     ],
     "strict": true,
-    "baseUrl": "."
+    "baseUrl": ".",
+    "strictFunctionTypes": false
   },
   "include": [
     "**/*"
