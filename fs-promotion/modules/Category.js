@@ -48,9 +48,9 @@ PromotionCategory.prototype.open = function () {
 
   this.$root = $(
     '<div class="promotion-category">' +
-    '   <div class="btn-close">' +
-    '       <span class="icon-close bgimgStyle"></span>' +
-    '   </div>' +
+    '    <div class="btn-close">' +
+    '       <span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' + 
+      '</div>' +
     '   <div class="top-bar">' +
     '       <div class="title"></div>' +
     '   </div>' +
@@ -126,6 +126,12 @@ PromotionCategory.prototype.useCategoryDetailModal = function (promotionName, $c
     })
   }
   assert(this.$root).append(this.$detailModal)
+
+  // 绑定图标事件
+  promotionUtils.addIconEvents(this.$detailModal)
+
+  // 国际化替换
+  promotionUtils.localize(this.$detailModal)
 
   if (animation) {
     new TweenMax.fromTo(this.$detailModal[0], 0.2, { scale: 0 }, {
@@ -287,7 +293,7 @@ PromotionCategory.prototype.handlePromotionListResult = function (result) {
 
   if (tournamentResult && tournamentResult.code === 0) {
     tournamentResult = assert(Service.create()._uncompressData(Service._Commands.TOUR_GAMES_LIST, tournamentResult))
-    if (!tournamentResult || tournamentResult.code !== 0 || !Tournament.createMainComponent) return
+    if (!tournamentResult || !Tournament.createMainComponent) return
     tournamentResult.list.forEach(function (item) {
       /** @type {TournamentMainComponentData} */
       var data = {
@@ -306,7 +312,23 @@ PromotionCategory.prototype.handlePromotionListResult = function (result) {
     })
   }
 
-  // TODO: freeSpinResult
+  if (freeSpinResult && freeSpinResult.code === 0) {
+    if (!FreeSpin.createMainComponent) return
+    freeSpinResult.list.forEach(function (item) {
+      /** @type {FreeSpinMainComponentData} */
+      var data = {
+        promotionData: {
+          __d: true,
+          name: PromotionNames.FreeSpin,
+          data: item,
+          tranId: item.tranId
+        }
+      }
+      ctx.appendItem(
+        assert(FreeSpin.createMainComponent)(data, ctx.api)
+      )
+    })
+  }
 }
 
 /**

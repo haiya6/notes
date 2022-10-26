@@ -87,7 +87,7 @@ var promotionTemplate = {
       '           <div class="bgimgpromotion_lan ' + promotion.name + '_title"></div>' +
       '           <div class="single-duration"><span class="bgimgpromotion_lan ' + promotion.name + '_dur_bg"></span><p><b></b><b></b><b></b><b></b></p></div>' +
       '           <div class="single-units">' +
-      '             <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_READY_WIN"), data.freeSpin.spinCount) + '</p>' +
+      '             <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_READY_WIN"), data.tu) + '</p>' +
       '             <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_TURNOVER_DESC"), spade.content.currency + ' ' + mm.formatAmount(data.turnover)) + '</p>' +
       '           </div>' +
       '           <div class="single-btn">' +
@@ -108,11 +108,11 @@ var promotionTemplate = {
 
     var html =
       '<div class="tips-single freespin">' +
-      '   <div class="tips-freespin-type">' + Locale.getString("TXT_FREESPIN_TYPE").split("%n%")[Number(data.promotionCode[data.promotionCode.length -1]) - 1] + '</div>' +
+      '   <div class="tips-freespin-type">' + Locale.getString("TXT_FREESPIN_TYPE").split("%n%")[Number(data.promotionCode[data.promotionCode.length - 1]) - 1] + '</div>' +
       '   <div class="tips-title">' + data.freeSpin.gameName + '</div>' +
       '   <div class="tips-text">' +
-      '     <p>' + Locale.getString('TXT_FREESPIN_REDEEM_TIP01') + '<span>' + mm.formatStr(Locale.getString("TXT_FREESPIN_REDEEM_TIP02"), data.freeSpin.spinCount) +'</span></p>' +
-      '     <p>' + Locale.getString('TXT_FREESPIN_REDEEM_TIP03') +'</p>' +
+      '     <p>' + Locale.getString('TXT_FREESPIN_REDEEM_TIP01') + '<span>' + mm.formatStr(Locale.getString("TXT_FREESPIN_REDEEM_TIP02"), data.freeSpin.spinCount) + '</span></p>' +
+      '     <p>' + Locale.getString('TXT_FREESPIN_REDEEM_TIP03') + '</p>' +
       '   </div>' +
       '   <div class="tips_times">' +
       '       <span></span>' +
@@ -130,45 +130,12 @@ var promotionTemplate = {
   * @param {PromotionState} state 
   */
   createMainForTournament: function (promotionData, maxRankCount, state) {
+    var createGameListHTML = promotionTemplate.createGameList
     var html = ''
     var data = promotionData.data
     var typeStr = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")[promotionUtils.state2RequestStatus[state] - 1]
     var rankStr = data.subInfo.rank == 0 ? maxRankCount + "+" : data.subInfo.rank
     var tourIconTag = 'tour_big_icon' + (spade.content.hideProviderLogo ? '_no' : '')
-
-    /**
-     * @param {string} gameCode 
-     */
-    var getImgUrl = function (gameCode) {
-      return '../../../fscommon/thumbnail/' + promotionUtils.getLanguage(["en_US", "zh_CN", "th_TH"]) + "/" + gameCode + ".png" + "?" + mm.game.config.ver;
-    }
-
-    /**
-     * 
-     * @param {string[]} games 
-     */
-    var createGameListHTML = function (games) {
-      var html = ''
-      var len = games.length
-      if (len > 6) {
-        games.slice(0, 5).forEach(function (gameCode) {
-          html += '<li><img src="' + getImgUrl(gameCode) + '"></li>'
-        })
-        html += '<li class="more">+' + (len - 6) + '<i class="bgimgtournament tour_tips_icon"></i></li>'
-      } else if (len > 2) {
-        games.forEach(function (gameCode) {
-          html += '<li><img src="' + getImgUrl(gameCode) + '"></li>';
-          for (var i = 0; i < 6 - len; i++) {
-            html += '<li></li>';
-          }
-        })
-      } else {
-        games.forEach(function (gameCode) {
-          html += '<li num="' + len + '"><img src="' + getImgUrl(gameCode) + '"></li>';
-        });
-      }
-      return html
-    }
 
     if (state === PromotionStates.Registering) {
       html = '<div class="box_list_info component_tournament">' +
@@ -234,6 +201,380 @@ var promotionTemplate = {
     }
 
     return $(html)
+  },
+
+  /**
+   * @param {string[]} games 
+   * @returns 
+   */
+  createGameList: function (games) {
+    var getImgUrl = promotionUtils.getImgUrl
+    var html = ''
+    var len = games.length
+    if (len > 6) {
+      games.slice(0, 5).forEach(function (gameCode) {
+        html += '<li><img src="' + getImgUrl(gameCode) + '"></li>'
+      })
+      html += '<li class="more">+' + (len - 6) + '<i class="bgimgtournament tour_tips_icon"></i></li>'
+    } else if (len > 2) {
+      games.forEach(function (gameCode) {
+        html += '<li><img src="' + getImgUrl(gameCode) + '"></li>';
+        for (var i = 0; i < 6 - len; i++) {
+          html += '<li></li>';
+        }
+      })
+    } else {
+      games.forEach(function (gameCode) {
+        html += '<li num="' + len + '"><img src="' + getImgUrl(gameCode) + '"></li>';
+      });
+    }
+    return html
+  },
+
+  /**
+   * @param {TournamentPromotionDetailData['list'][number]} codeItemData 
+   */
+  createLeaderListHTML: function (codeItemData) {
+    var html = ''
+
+    codeItemData.tournamentRank.list.forEach(function (item, index) {
+      if (index <= 2) html += '<div class="tr tr_top" data="' + (index + 1) + '"><div class="td"><span class="bgimgtournament"></span></div>'
+      else html += '<div class="tr"><div class="td"><span>' + (index + 1) + '</span></div>'
+
+      html +=
+        ' <div class="td">' + item.acctId + '</div>' +
+        ' <div class="td">' + mm.formatAmount(item.amount) + '</div>' +
+        '</div>';
+    })
+
+    return html
+  },
+
+  /**
+   * @param {TournamentPromotionDetailData['list'][number]} codeItemData 
+   */
+  createPrizeList: function (codeItemData) {
+    var html = ''
+
+    codeItemData.tournamentBonusInfo.forEach(function (item) {
+      html += '<div class="tr">' +
+        ' <div class="td">' + item.name + '</div>' +
+        ' <div class="td">' + mm.formatAmount(item.bonusAmt) + '</div>' +
+        '</div>';
+    })
+
+    return html
+  },
+
+  /**
+   * @param {string} beginDate
+   * @param {string} endDate
+   * @param {TournamentPromotionDetailData['list'][number]} codeItemData 
+   */
+  createDailyInfo: function (beginDate, endDate, codeItemData) {
+    var getDate = promotionUtils.getDate
+    // @ts-expect-error
+    var beginDateStr = getDate(beginDate).format("yyyy-MM-dd") + " (" + getDate(beginDate).format("hh:mm:ss") + ")"
+    // @ts-expect-error
+    var endDateStr = getDate(endDate).format("yyyy-MM-dd") + " (" + getDate(endDate).format("hh:mm:ss") + ")"
+
+    var ruleText = ''
+    if (codeItemData.minBet) {
+      ruleText = Locale.getString("TXT_RULE_AMOUNT")
+      codeItemData.tournamentCurrencyIntegrals.forEach(function (item) {
+        ruleText += ' ' + item.currId + ':' + mm.parseAmount(item.minBet || 0)
+      })
+    } else if (codeItemData.minPoint) {
+      ruleText = Locale.getString("TXT_MINPOINTS_" + codeItemData.code).replace("%%min-points%", codeItemData.minPoint).replace("%%rank-count%", codeItemData.rankCount);
+    } else {
+      ruleText = Locale.getString("TXT_NO_MINBET")
+    }
+
+    var html =
+      '           <h3><span class="bgimgtournament tour_title_icon"></span><i>' + codeItemData.name + '</i></h3>' +
+      '                   <div class="daily_table">' +
+      '                       <div class="tr">' +
+      '                           <div class="td"><p>' + Locale.getString("TXT_TOURNAMENT_STARTTIME") + '</p><p>' + Locale.getString("TXT_TOURNAMENT_ENDTIME") + '</p></div>' +
+      '                           <div class="td"><p>' + beginDateStr + '</p><p>' + endDateStr + '</p></div>' +
+      '                       </div>' +
+      '                       <div class="tr">' +
+      '                           <div class="td"><p>' + Locale.getString("TXT_TOURNAMENT_NO_PLAYER") + '</p></div>' +
+      '                           <div class="td"><p>' + (codeItemData.noOfPlayer || '-') + '</p></div>' +
+      '                       </div>' +
+      '                   </div>' +
+      '                   <div class="daily_text">' +
+      '                       <h4>' + Locale.getString("TXT_TOURNAMENT_GAMES") + '</h4>' +
+      '                       <p class="game-list"></p>' +
+      '                   </div>' +
+      '                   <div class="daily_text">' +
+      '                       <h4>' + Locale.getString("TXT_RULES") + '</h4>' +
+      '                       <p>' + ruleText + '</p>' +
+      '                       <p>' + Locale.getString("TXT_RULE_" + codeItemData.code) + '</p>' +
+      '                   </div>' +
+      '                   <div class="daily_text">' +
+      '                       <h4>' + Locale.getString("TXT_TERMS") + '</h4>' +
+      '                       <p>' + Locale.getString("TXT_TERMS_INFO") + '</p>' +
+      '                   </div>';
+
+    return html
+  },
+
+  createDetailForTournament: function () {
+    var html =
+      '    <div class="content_nav">' +
+      '    <div class="btn-close">' +
+      '       <span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' + 
+          '</div>' +
+      '      <div class="top-bar"><div class="title" key="TXT_TOURNAMENT"></div></div>' +
+      '      <div class="t_nav">' +
+      '        <div class="t_game_list">' +
+      '          <ul>' +
+      '          </ul>' +
+      '        </div>' +
+      '        <div class="t_me_area">' +
+      '           <div class="t_me_left">' +
+      '               <h3 class="my_tour_name"></h3>' +
+      '               <div class="t_btn">' +
+      '                   <span class="bgimgtournament tour_home_icon"></span>' +
+      '                   <p><span class="my-rank"></span><span key="TXT_TOURNAMENT_RANK"></span></p>' +
+      '               </div>' +
+      '               <div class="t_btn">' +
+      '                   <span class="bgimgtournament tour_point_icon"></span>' +
+      '                   <p><span class="my-point"></span><span key="TXT_TOURNAMENT_POINT"></span></p>' +
+      '               </div>' +
+      '           </div>' +
+      '           <div class="t_me_right">' +
+      '               <div class="t_text">' +
+      '                   <span><i key="TXT_TOURNAMENT_ONLINE"></i> <i class="my-online"></i></span>' +
+      '               </div>' +
+      '               <div class="t_me_times">' +
+      '                   <span class="my-type-end"></span>' +
+      '                   <span class="my-times"></span>' +
+      '                   <p><b class="my-progress"></b></p>' +
+      '                   <span class="my-type"></span>' +
+      '               </div>' +
+      '           </div>' +
+      '        </div>' +
+      '      </div>' +
+      '      <div class="t_main">' +
+      '      <div class="t_info list_info_parent">' +
+      '        <h3 key="TXT_LEADERBOARD"></h3>' +
+      '        <div class="t_list_nodata"><p key="TXT_TOURNAMENT_LEADER_NO_DATA"></p></div>' +
+      '        <div class="t_list">' +
+      '          <div class="tr">' +
+      '            <div class="th" key="TXT_RANK"></div>' +
+      '            <div class="th" key="TXT_PLAYERID"></div>' +
+      '            <div class="th" key="TXT_TOTAL"></div>' +
+      '          </div>' +
+      '          <div class="t_list_body">' +
+      '            <div class="scroll-container">' +
+      '              <div class="main-scroll">' +
+      '                <div class="t_list_rank">' +
+      '                </div>' +
+      '              </div>' +
+      '            </div>' +
+      '          </div>' +
+      '        </div>' +
+      '      </div>' +
+      '      <div class="t_info_prize list_info_parent">' +
+      '        <h3 key="TXT_PRIZE"></h3>' +
+      '        <div class="t_list_nodata"><p key="TXT_TOURNAMENT_PRIZE_NO_DATA"></p></div>' +
+      '        <div class="t_list">' +
+      '          <div class="tr">' +
+      '            <div class="th" key="TXT_RANK"></div>' +
+      '            <div class="th">' + Locale.getString("TXT_REWARD") + '(' + spade.content.currency + ')</div>' +
+      '          </div>' +
+      '          <div class="t_list_body">' +
+      '            <div class="scroll-container">' +
+      '              <div class="main-scroll">' +
+      '                <div class="t_list_prize">' +
+      '                </div>' +
+      '              </div>' +
+      '            </div>' +
+      '          </div>' +
+      '        </div>' +
+      '      </div>' +
+      '      <div class="t_info_daily">' +
+      '          <div class="t_list_body">' +
+      '            <div class="scroll-container">' +
+      '              <div class="main-scroll">' +
+      '                <div class="t_list_daily">' +
+      '                </div>' +
+      '              </div>' +
+      '            </div>' +
+      '          </div>' +
+      '      </div>' +
+      '     </div>' +
+      '      <div class="t_nav_cont">' +
+      '       <div class="cont_nav1">' +
+      '           <ul>' +
+      '               <li class="bgimgpromotion promotion_nav_bg"><span baseImg="bgimgtournament" tag="tour_lead" class="bgimgtournament tour_lead_up"></span></li>' +
+      '               <li class="bgimgpromotion promotion_nav_bg"><span baseImg="bgimgtournament" tag="tour_prize" class="bgimgtournament tour_prize_up"></span></li>' +
+      '               <li class="bgimgpromotion promotion_nav_bg"><span baseImg="bgimgpromotion" tag="promotion_info" class="bgimgpromotion promotion_info_up"></span></li>' +
+      '           </ul>' +
+      '       </div>' +
+      '       <div class="cont_nav2">' +
+      '           <ul></ul>' +
+      '           <div class="btn_home"><span baseImg="bgimgpromotion" tag="promotion_home" class="bgimgpromotion promotion_home_up"></span></div>' +
+      '       </div>' +
+      '      </div>' +
+      '    </div>'
+
+    return $(html)
+  },
+
+
+
+  /**
+  * @param {FreeSpinPromotionData} promotionData 
+  * @param {PromotionState} state 
+  */
+  createMainForFreeSpin: function (promotionData, state) {
+    var data = promotionData.data
+    var typeStr = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")[promotionUtils.state2RequestStatus[state] - 1]
+    var html =
+      ' <div class="box_list_info component_freespin">' +
+      '   <div class="box_left">' +
+      '     <div class="row1">' +
+      '       <i><span class="bgimgfreespin fr_normal"></span></i>' +
+      '       <div>' +
+      '         <p>' + Locale.getString("TXT_TITLE_FREESPIN") + '</p>' +
+      '         <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_WIN_DES"), 1000000) + '</p>' +
+      '       </div>' +
+      '     </div>' +
+      '     <div class="row2">' +
+      '       <div class="box_times">' +
+      '         <span>00:00:00</span>' +
+      '         <p><b></b></p>' +
+      '         <span>' + typeStr + '</span>' +
+      '       </div>' +
+      '       <div class="redeem-box">' +
+      '         <div class="btn redeem">' +
+      '           <div class="bgimgfreespin redeem_enable">' +
+      '             <p>' + Locale.getString('TXT_FREESPIN_READY_REDEEM') + '</p>' +
+      '           </div>' +
+      '         </div>' +
+      '         <div class="btn fully-redeem">' +
+      '           <div class="bgimgfreespin redeem_disable">' +
+      '             <p>' + Locale.getString('TXT_FREESPIN_FULLY_REDEEM') + '</p>' +
+      '           </div>' +
+      '         </div>' +
+      '       </div>' +
+      '     </div>' +
+      '   </div>' +
+      '   <div class="box_right">' +
+      '     <span class="bgimgfreespin freespin_promotion"></span>' +
+      '   </div>' +
+      ' </div>'
+      ;
+
+
+    var $el = $(html);
+    if (state === PromotionStates.Live) {
+      if (data.freeSpin) $el.find('.redeem').show();
+      if (!data.freeSpin && data.rt) $el.find('.fully-redeem').show()
+    }
+
+    return $el;
+  },
+
+  /**
+  * @param {FreeSpinPromotionData} promotionData 
+  */
+  createDetailForFreespin: function (promotionData) {
+    var data = promotionData.data;
+    var beginDate = data.beginDate;
+    var endDate = data.endDate;
+
+    var html =
+      '<div class="free-detail">' +
+      '<div class="title">' +
+      '<span class="bgimgfreespin fr_normal"></span>' +
+      '<p><span>' + Locale.getString('TXT_TITLE_FREESPIN') + '</span></p>' +
+      '<div class="btn-close">' +
+      '<span class="icon-close bgimgStyle"></span>' +
+      '</div>' +
+      '</div>' +
+
+          '<div class="content">' +
+            '<div class="tab1">' +
+              '<p>this is page1</p>' +
+            '</div>' +
+            '<div class="tab2">' +
+              '<h3><span class="bgimgfreespin fr_normal"></span><i>Free Spin: Loyal</i></h3>' +
+              '<div class="daily_table">'+
+                '<div class="tr">'+
+                  '<div class="td"><p>'+Locale.getString("TXT_TOURNAMENT_STARTTIME")+'</p><p>'+Locale.getString("TXT_TOURNAMENT_ENDTIME")+'</p></div>'+
+                  '<div class="td"><p>'+beginDate+'</p><p>'+endDate+'</p></div>'+
+                '</div>'+
+              '</div>'+
+              '<div class="daily_text">' +
+                '<h4>' + Locale.getString('TXT_RULES') + '</h4>' +
+                '<p>' + Locale.getString("TXT_RULE_FREESPIN") + '</p>' +
+              '</div>' +
+              '<div class="daily_text">' +
+                '<h4>' + Locale.getString('TXT_TERMS') + '</h4>' +
+                '<p>' + Locale.getString("TXT_TERMS_FREESPIN") +'</p>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="footer">' +
+            '<div class="cont_nav1">' +
+              '<ul>' +
+                '<li class="bgimgpromotion promotion_nav_bg"><span tag="tour_lead" class="bgimgfreespin fr_up"></span></li>'+
+                '<li class="bgimgpromotion promotion_nav_bg"><span tag="tour_info" class="bgimgpromotion promotion_info_up"></span></li>'+
+              '</ul>' +
+            '</div>' +
+            '<div class="cont_nav2">' +
+              '<div class="name"><span>Free Spin Legend</span></div>' +
+              '<div class="btn_home">' + 
+                '<span tag="promotion_home" class="bgimgpromotion promotion_home_up"></span>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+    var $el = $(html);
+    return $el;
+  },
+
+  /**
+   * @param {string[]} gameCodes 
+   * @param {(html: string) => void} callback 
+   * @returns 
+   */
+  createAllGameList: function (gameCodes, callback) {
+    promotionUtils.getTournamentAllGames(function (allGames) {
+      var gamesHTML = ''
+
+      gameCodes.forEach(function (code) {
+        gamesHTML += '<li>' +
+          '<div class="i_top">' +
+          '  <img src="' + promotionUtils.getImgUrl(code) + '"/>' +
+          '</div>' +
+          '<div class="i_info">' +
+          '  <h3>' + allGames[code] + '</h3>' +
+          '</div>' +
+          '</li>'
+      })
+
+      var html =
+        '    <div class="game_list_wrapper">' +
+        '      <div class="btn-close"><span baseImg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion promotion_close_up"></span></div>' +
+        '      <div class="g_tit" key="TXT_TOURNAMENT_GAME_LIST"></div>' +
+        '      <div class="g_list">' +
+        '        <div class="scroll-container">' +
+        '          <div class="main-scroll">' +
+        '            <ul>' + gamesHTML + '</ul>' +
+        '          </div>' +
+        '        </div>' +
+        '      </div>' +
+        '    </div>'
+
+
+      callback(html)
+    })
   }
 }
 

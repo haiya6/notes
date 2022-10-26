@@ -35,11 +35,17 @@ var DrawerUI = {
     var id = DrawerUI.nextID++
     var height = options.height || '100%'
 
-    var $container = $('<div class="drawer-ui"><div>')
+    var $container = $(
+      '<div class="drawer-ui">' + 
+      '   <div class="drawer-ui__mask"></div>'+
+      '   <div class="drawer-ui__content"></div>'+
+      '</div>'
+    )
 
-    $container
-      .css('z-index', DrawerUI.nextZIndex++)
-      .css('height', height)
+    var $contentWraper = $container.find('.drawer-ui__content')
+
+    $container.css('z-index', DrawerUI.nextZIndex++)
+    $contentWraper.css('height', height)
     
     
     if (options.wrapperClassNames) {
@@ -48,10 +54,12 @@ var DrawerUI = {
       })
     }
 
-    $container.append($content)
+    $contentWraper.append($content)
+    promotionUtils.localize($container)
+    promotionUtils.addIconEvents($container)
     $('#controlbarH5 .controlbar_component').append($container)
 
-    var tween = new TweenMax.to($container[0], 0.2, {
+    var tween = new TweenMax.to($contentWraper[0], 0.2, {
       y: 0,
       ease: 'none',
       onComplete: function () {

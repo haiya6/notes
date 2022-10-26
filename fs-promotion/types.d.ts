@@ -75,7 +75,26 @@ declare interface PromotionData {
 declare interface FreeSpinPromotionData extends PromotionData {
   name: 'freespin'
   data: {
-    // TODO
+    beginDate: string
+    cd: string
+    endDate: string
+    forfeitDate: string
+    name: string
+    promotionCode: string
+    promotionGroup: number
+    rt: boolean
+    serverTime: string
+    tranId: number
+    turnover: number,
+    freeSpin: {
+      acctId: string;
+      gameCode: string;
+      gameName: string;
+      roundId: number;
+      sourceType: number;
+      spinCount: number;
+      totalBetAmt: number;
+    }
   }
 }
 
@@ -182,7 +201,10 @@ declare interface TournamentDetailRequestResult {
 
 declare type TournamentMainComponentData = Pick<Required<GameListRequestResult['map']>['B-TD01'], 'maxRankCount' | 'timeZone'> & { promotionData: TournamentPromotionData }
 
+declare type FreeSpinMainComponentData = { promotionData: FreeSpinPromotionData }
+
 declare interface PromotionComponentOptions {
+  setup?: () => void | (() => void)
   // 返回组件的 jquery 元素
   initialRender: () => JQuery<HTMLElement>
   // DOM 挂载后调用
@@ -197,6 +219,8 @@ declare interface PromotionComponentOptions {
   onBeforeUnmount?: () => void
   // 给了此钩子之后，会在卸载前触发此钩子并传递一个卸载函数，在调用此函数后，依然会走 onBeforeUnmount 回调，然后真正的 DOM 移除
   onDelayUnmount?: (doUnmount: () => void) => void
+  // 组件将被移除时执行，在 promotion 数据被移除，如后台的关闭推送，
+  onBeforeRemove?: () => void
 }
 
 declare interface PromotionComponentInstanceProperties {
@@ -211,13 +235,16 @@ declare interface PromotionComponentInstanceProperties {
 declare type PromotionComponent = PromotionComponentOptions & PromotionComponentInstanceProperties
 
 declare type DefineComponentFunction = <T extends PromotionComponentOptions>(
-  options: T & ThisType<PromotionComponentInstanceProperties & Omit<T, keyof PromotionComponentOptions>>
+  options: T & ThisType<PromotionComponentInstanceProperties & T>
 ) => PromotionComponent & T
 
 declare interface PromotionAPI {
+  emitter: Emitter
   defineBannerComponent: DefineComponentFunction
   defineTipComponent: DefineComponentFunction
   defineMainComponent: DefineComponentFunction
+  // 关闭 banner 模块
+  closeBanner: () => void
   // 展示分类模块
   openCategory: () => void
   // 分类模块的详情模态框

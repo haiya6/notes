@@ -12,13 +12,7 @@ var PromotionStates = /** @type {const} */ ({
 })
 
 var PromotionEvents = {
-  BannerComponentUpdate: 'promotion:banner-component-update',
-  TipComponentUpdate: 'promotion:tip-component-update',
-  BetChanged: 'promotion:bet-changed',
-
-  OpenCategory: 'promotion:open:category',
-
-  CloseBanner: 'promotion:close:banner'
+  BetChanged: 'promotion:bet-changed'
 }
 
 /**
@@ -306,14 +300,6 @@ var promotionUtils = {
     return dateObj;
   },
 
-
-  /**
-   * @type {<T>(options: T & PromotionComponent) => T & PromotionComponent} 
-   */
-  defineComponent: function (options) {
-    return options
-  },
-
   /**
    * @param {string} startDate
    * @param {string} endDate
@@ -422,12 +408,11 @@ var promotionUtils = {
           }
         case PromotionNames.FreeSpin:
           var _fd = /** @type {FreeSpinPromotionData} */ (promotionData).data
-          // TODO
           return {
-            openDate: '',
-            beginDate: '',
-            endDate: '',
-            closeDate: '',
+            openDate: _fd.cd,
+            beginDate: _fd.beginDate,
+            endDate: _fd.endDate,
+            closeDate: _fd.forfeitDate,
           }
       }
     }
@@ -461,6 +446,85 @@ var promotionUtils = {
       configurable: true,
       writable: true,
       enumerable: true
+    })
+  },
+
+  /**
+   * 
+   * @param {PromotionComponent} component 
+   */
+  setupComponent: function (component) {
+    if (component.setup) {
+      var onBeforeRemove = component.setup()
+      if (onBeforeRemove) component.onBeforeRemove = onBeforeRemove
+    }
+  },
+
+  /**
+   * @param {JQuery<HTMLElement>} $root 
+   */
+  addIconEvents: function ($root) {
+    $root.find('*[tag]').each(function (_, el) {
+      var tag = $(el).attr('tag')
+      var baseImg = $(el).attr('baseImg') || 'bgimgStyle'
+
+      var mousedown = mm.device.isPC() ? 'mousedown' : 'touchstart'
+      var mouseup = mm.device.isPC() ? 'mouseup' : 'touchend'
+
+      if (mm.device.isPC()) {
+        el.addEventListener('mouseover', function () {
+          $(el).attr('class', baseImg + ' ' + tag + '_over')
+        })
+
+        el.addEventListener('mouseout', function () {
+          $(el).attr('class', baseImg + ' ' + tag + '_up')
+        })
+      }
+
+      el.addEventListener(mousedown, function () {
+        $(el).attr('class', baseImg + ' ' + tag + '_down')
+      })
+
+      el.addEventListener(mouseup, function () {
+        $(el).attr('class', baseImg + ' ' + tag + '_up')
+      })
+    })
+  },
+
+  /**
+   * @param {JQuery<HTMLElement>} $root 
+   */
+  localize: function ($root) {
+    $root.find('[key]').each(function(_, item) {
+      $(item).text(Locale.getString($(item).attr('key')))
+    });
+  },
+
+  /**
+   * @param {string} gameCode 
+   * @returns 
+   */
+  getImgUrl: function (gameCode) {
+    return '../../../fscommon/thumbnail/' + promotionUtils.getLanguage(["en_US", "zh_CN", "th_TH"]) + "/" + gameCode + ".png" + "?" + mm.game.config.ver;
+  },
+  /** @type {Record<string, string> | null} */
+  _tournamentAllGamesCache: null,
+  /**
+   * @param {(data: Record<string, string>) => void} callback 
+   */
+  getTournamentAllGames: function (callback) {
+    if (promotionUtils._tournamentAllGamesCache) return callback(promotionUtils._tournamentAllGamesCache)
+    Service.create().getTournamentAllGames({
+      language: spade.content.language
+    }, function (/** @type {any} */ res) {
+      if (res.code !== 0) return callback({})
+      else {
+        promotionUtils._tournamentAllGamesCache = {}
+        res.list.forEach(function (/** @type {any} */ item) {
+          promotionUtils.assert(promotionUtils._tournamentAllGamesCache)[item.gameCode] = item.gameName
+        })
+        return callback(promotionUtils._tournamentAllGamesCache)
+      }
     })
   }
 }

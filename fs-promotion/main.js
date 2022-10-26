@@ -2,6 +2,7 @@
 
 ; (function () {
   var define = promotionUtils.define
+  var setupComponent = promotionUtils.setupComponent
 
   var service = Service.create()
   var emitter = new Emitter()
@@ -21,13 +22,11 @@
     [PromotionNames.FreeSpin, FreeSpin],
   ])
 
-  // expose ---
-  define(window, 'promotionEmitter', emitter)
-
   /**
    * @type {PromotionAPI}
    */
   var api = {
+    emitter: emitter,
     defineBannerComponent: function (/** @type {any} */ options) {
       options.mount = function () {
         promotionBanner.appendBanner(options)
@@ -55,6 +54,9 @@
       }
       return options
     },
+    closeBanner: function () {
+      promotionBanner.unmount()
+    },
     openCategory: function () {
       promotionCategory.open()
     },
@@ -62,6 +64,9 @@
       return promotionCategory.useCategoryDetailModal(promotionName, $content, options)
     }
   }
+
+  // expose ---
+  define(window, 'promotionAPI', api)
 
   var promotionBanner = new PromotionBanner(api)
   var promotionTip = new PromotionTip(api)
@@ -72,15 +77,20 @@
    */
   function addPromotion(promotion) {
     promotions.push(promotion)
+    updateTag()
     var ns = PromotionName2PromotionNS.get(promotion.name)
     if (!ns) return
 
     if (ns.createBannerComponent) {
-      promotion2BannerComponent.set(promotion, ns.createBannerComponent(promotion, api))
+      var component = ns.createBannerComponent(promotion, api)
+      setupComponent(component)
+      promotion2BannerComponent.set(promotion, component)
     }
     
     if (ns.createTipComponent) {
-      promotion2TipComponent.set(promotion, ns.createTipComponent(promotion, api))
+      var component = ns.createTipComponent(promotion, api)
+      setupComponent(component)
+      promotion2TipComponent.set(promotion, component)
     }
   }
 
@@ -109,30 +119,35 @@
     var promotion = promotions[willRemoveIndex]
 
     var bannerComponent = promotion2BannerComponent.get(promotion)
-    if (promotionBanner.mounted && bannerComponent) {
+    if (bannerComponent) {
       promotionBanner.removeBanner(bannerComponent)
+      if (bannerComponent.onBeforeRemove) bannerComponent.onBeforeRemove()
     }
 
     var tipComponent = promotion2TipComponent.get(promotion)
-    if (promotionTip.mounted && tipComponent) {
+    if (tipComponent) {
       promotionTip.removeTip(tipComponent)
+      if (tipComponent.onBeforeRemove) tipComponent.onBeforeRemove()
     }
 
     // 移除数据
     promotions.splice(willRemoveIndex, 1)
     promotion2BannerComponent.delete(promotion)
     promotion2TipComponent.delete(promotion)
+    updateTag()
   }
 
-  emitter.on(PromotionEvents.BetChanged, function () {
-    promotion2TipComponent.forEach(function (component) {
-      emitter.emit(PromotionEvents.TipComponentUpdate, component)
-    })
-  })
-
-  // emitter.on(PromotionEvents.CloseBanner, function () {
-  //   promotionBanner.unmount()
-  // })
+  function updateTag() {
+    var count = promotions.reduce(function (prev, promotion) {
+      var normalizedDate = promotionUtils.normalizePeriodDate(promotion)
+      return prev + Number(promotionUtils.getPromotionState(normalizedDate.beginDate, normalizedDate.endDate) === PromotionStates.Live)
+    }, 0)
+    var $tag = $('#controlbarH5 .tools_component')
+    var $count = $tag.find('.gift_count')
+    $count.text(count)
+    if (count == 0) $tag.hide()
+    else $tag.show()
+  }
 
   // freespin
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_OPEN, function (/** @type {any} */ data) {
@@ -146,7 +161,9 @@
     })
   })
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_ACCESS, function (/** @type {any} */ data) {
-    // TODO update
+    promotionResourceLoader.load(PromotionNames.FreeSpin, data.languages, function () {
+      // TODO update or add
+    });
   })
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_CLOSE, function (/** @type {any} */ data) {
     // TODO: 校验 tranId 正确性
