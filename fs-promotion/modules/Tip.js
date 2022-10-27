@@ -28,13 +28,11 @@ function PromotionTip(api) {
 }
 
 PromotionTip.prototype.mountContainer = function () {
-  var ctx = this
   this.$root = $('<div class="controlbar_promotion_tips" id="controlbar_promotion_tips"></div>')
   this.$body = $(
     '<div class="promotion_tips_container">' +
     ' <div class="p_tips">' +
     '   <div class="p_tips_info">' +
-    '     <div class="tips-close-btn"><span class="bgimgStyle close_up"></span></div>' +
     '     <div class="tips-content">' +
     '       <div class="scroll-container">' +
     '           <div class="main-scroll">' +
@@ -51,13 +49,6 @@ PromotionTip.prototype.mountContainer = function () {
   $('.controlbar_mobile_info').append(this.$root)
 
   this.tryInitOrRefreshScroll()
-
-  // 绑定关闭事件
-  this.$body.find('.tips-close-btn')[0].addEventListener('click', function () {
-    // TODO: self._soundTick("info");
-    ctx.unmount()
-  })
-
   this.mounted = true
 }
 
@@ -74,7 +65,7 @@ PromotionTip.prototype.tryInitOrRefreshScroll = function () {
   var assert = promotionUtils.assert
   var itemCount = assert(this.$body).find('.tips-single')
 
-  if (itemCount.length > 4) {
+  if (itemCount.length > 3) {
     if (this.scrollIns) this.scrollIns.refresh()
     else {
       assert(this.$body).find('.tips-content').addClass('scroll')
@@ -109,6 +100,7 @@ PromotionTip.prototype.appendTip = function (component) {
   if (!this.mounted) this.mountContainer()
   this.components.push(component)
   component.$$el = component.initialRender()
+  promotionUtils.addIconEvents(component.$$el)
   assert(this.$body).find('.tips-info').append(component.$$el)
   this.tryInitOrRefreshScroll()
   if (component.onMounted) component.onMounted()

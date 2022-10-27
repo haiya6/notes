@@ -7,27 +7,24 @@ var Tournament = /** @type {PromotionNS} */ ({});
 
 ; (function () {
   var assert = promotionUtils.assert
-  var getDate = promotionUtils.getDate
   var getPromotionState = promotionUtils.getPromotionState
   var getTimes = promotionUtils.getTimes
-  var normalizePeriodDate = promotionUtils.normalizePeriodDate
+  var normalizePeriodTime = promotionUtils.normalizePeriodTime
 
   // banner component
   Tournament.createBannerComponent = function (/** @type {TournamentPromotion} */ promotion, api) {
-    var normalizedDate = normalizePeriodDate(promotion)
-    /** @type {() => void} */
+    var normalizedTime = normalizePeriodTime(promotion)
+    /** @type {(() => void) | undefined} */
     var timerDestructor
 
     return api.defineBannerComponent({
       setup: function () {
         /** @type {number} */
         var toMountTimer
-
-        var currentState = getPromotionState(normalizedDate.beginDate, normalizedDate.endDate)
-
+        var currentState = getPromotionState(promotion)
         if (currentState === PromotionStates.Live) this.mount()
         else if (currentState === PromotionStates.Registering) {
-          var timeout = +getDate(normalizedDate.beginDate) - Date.now()
+          var timeout = normalizedTime.beginTime - Date.now()
           toMountTimer = window.setTimeout(this.mount.bind(this), timeout)
         }
 
@@ -42,22 +39,25 @@ var Tournament = /** @type {PromotionNS} */ ({});
         this.startCountdown()
         // 绑定关闭事件
         assert(this.$$el).find('.single-btn .tournament_btn')[0].addEventListener('click', function () {
-          api.closeBanner()
+          promotionUtils.soundTick('info')
+          $(this).addClass('ani')
+          this.addEventListener('animationend', function () {
+            api.closeBanner()
+          })
         })
       },
       onActivated: function () {
         this.startCountdown()
       },
       onDeactivated: function () {
-        timerDestructor()
+        timerDestructor && timerDestructor()
       },
       onBeforeUnmount: function () {
-        timerDestructor()
+        timerDestructor && timerDestructor()
       },
       startCountdown: function () {
         var ctx = this
-        timerDestructor = promotionUtils.createCountdown(normalizePeriodDate(promotion).endDate, {
-          timeZone: promotion.data.timeZone,
+        timerDestructor = promotionUtils.createCountdown(normalizedTime.endTime, {
           onUpdate: function (remainingTime) {
             var times = getTimes(remainingTime)
             assert(ctx.$$el).find('.single-duration b').each(function (index, item) {
@@ -75,7 +75,8 @@ var Tournament = /** @type {PromotionNS} */ ({});
 
   // tip component
   Tournament.createTipComponent = function (/** @type {TournamentPromotion} */ promotion, api) {
-    /** @type {() => void} */
+    var normalizedTime = promotionUtils.normalizePeriodTime(promotion)
+    /** @type {(() => void) | undefined} */
     var timerDestructor
 
     return api.defineTipComponent({
@@ -83,7 +84,7 @@ var Tournament = /** @type {PromotionNS} */ ({});
         var ctx = this
 
         var handler = function () {
-          if (getPromotionState(promotion.data.beginDate, promotion.data.endDate) === PromotionStates.Live && spade.betInfo.totalBet < promotion.data.minBet) {
+          if (getPromotionState(promotion) === PromotionStates.Live && spade.betInfo.totalBet < promotion.data.minBet) {
             ctx.mount()
           } else {
             ctx.unmount()
@@ -98,14 +99,12 @@ var Tournament = /** @type {PromotionNS} */ ({});
       },
       onMounted: function () {
         var ctx = this
-        var normalizedData = normalizePeriodDate(promotion)
-
-        timerDestructor = promotionUtils.createCountdown(normalizedData.endDate, {
-          timeZone: promotion.data.timeZone,
+        timerDestructor = promotionUtils.createCountdown(normalizedTime.endTime, {
           onUpdate: function (remainingTime) {
+            var totalTime = normalizedTime.endTime - normalizedTime.beginTime
             promotionUtils.updateElementsCountdown(
               remainingTime,
-              +getDate(normalizedData.endDate) - +getDate(normalizedData.beginDate),
+              totalTime,
               assert(ctx.$$el).find('.tips_times span:first-child'),
               assert(ctx.$$el).find('.tips_times p b')
             )
@@ -114,9 +113,14 @@ var Tournament = /** @type {PromotionNS} */ ({});
             ctx.unmount()
           }
         })
+
+        // 绑定关闭事件
+        assert(this.$$el).find('.btn-close')[0].addEventListener('click', function () {
+          ctx.unmount()
+        })
       },
       onBeforeUnmount: function () {
-        timerDestructor()
+        timerDestructor && timerDestructor()
       }
     })
   }
@@ -124,13 +128,12 @@ var Tournament = /** @type {PromotionNS} */ ({});
   // main component
   Tournament.createMainComponent = function (/** @type {TournamentMainComponentData} */ mainData, api) {
     var promotionData = mainData.promotionData
-    var normalizedDate = normalizePeriodDate(promotionData)
-    var state = promotionUtils.getPromotionState(normalizedDate.beginDate, normalizedDate.endDate)
+    var normalizedTime = normalizePeriodTime(promotionData)
     var typeStrs = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")
 
     /**
      * 列表 item 的倒计时的定时器卸载器
-     * @type {() => void}
+     * @type {(() => void) | undefined}
      */
     var timerDestructor
     /**
@@ -211,7 +214,7 @@ var Tournament = /** @type {PromotionNS} */ ({});
       var scrollIns
       /**
        * CategoryDetailModal 的卸载器
-       * @type {ReturnType<PromotionAPI['useCategoryDetailModal']> | undefined}
+       * @type {DestoryCategoryDetailModalFunction | undefined}
        */
       var destroyCategoryDetailModal
       /**
@@ -309,8 +312,8 @@ var Tournament = /** @type {PromotionNS} */ ({});
             $content.addClass('hide-tnav')
             $content.find('.t_list_daily').html(
               promotionTemplate.createDailyInfo(
-                normalizedDate.beginDate,
-                normalizedDate.endDate,
+                normalizedTime.beginTime,
+                normalizedTime.endTime,
                 codeItemData
               )
             )
@@ -344,10 +347,6 @@ var Tournament = /** @type {PromotionNS} */ ({});
 
         var data = detailData.list[index]
         activeCode = data.code
-        var state = promotionUtils.getPromotionState(
-          normalizedDate.beginDate,
-          normalizedDate.endDate
-        )
         // nav2
         $content.find('.cont_nav2 > ul > li').removeClass('on').eq(index).addClass('on')
         // gamelist
@@ -363,7 +362,7 @@ var Tournament = /** @type {PromotionNS} */ ({});
         // my-rank
         // 如果当前处于准备阶段，则排名默认显示-，否则才显示正常排名
         $content.find('.my-rank').text(
-          state === PromotionStates.Registering
+          mainData.activeState === PromotionStates.Registering
             ? '-'
             : data.rank === 0 ? (mainData.maxRankCount + '+') : data.rank
         )
@@ -379,85 +378,96 @@ var Tournament = /** @type {PromotionNS} */ ({});
         toggleTab(activeTabIndex)
       }
 
-      var renderOrUpdateContent = function () {
-        if (!$content) {
-          $content = promotionTemplate.createDetailForTournament()
-
-          destroyCategoryDetailModal = api.useCategoryDetailModal(PromotionNames.Tournament, $content, {
-            wrapperClassNames: ['component_tournament']
-          })
-
-          // 倒计时
-          var $t_me_times = $content.find('.t_me_times')
-          $t_me_times.removeClass('end')
-          $t_me_times.find('.my-type').text(typeStrs[1])
-          $t_me_times.find('.my-type-end').text(typeStrs[2])
-          if (state === PromotionStates.Registering) $t_me_times.hide()
-          else {
-            $t_me_times.show()
-            if (state === PromotionStates.Live) {
-              var totalTime = +getDate(normalizedDate.endDate) - +getDate(normalizedDate.beginDate)
-              detailPanelTimerDestructor = promotionUtils.createCountdown(normalizedDate.endDate, {
-                timeZone: mainData.timeZone,
-                onUpdate: function (remainingTime) {
-                  promotionUtils.updateElementsCountdown(remainingTime, totalTime, $t_me_times.find('.my-times'), $t_me_times.find('.my-progress'))
-                }
-                // TODO
-              })
-            } else {
-              // ended
-              $t_me_times.addClass('end')
+      api.useCategoryDetailModal(function (doOpen) {
+        var renderOrUpdateContent = function () {
+          if (!$content) {
+            $content = promotionTemplate.createDetailForTournament()
+            destroyCategoryDetailModal = doOpen($content, {
+              wrapperClassNames: ['component_tournament']
+            })
+            // 倒计时
+            var $t_me_times = $content.find('.t_me_times')
+            $t_me_times.removeClass('end')
+            $t_me_times.find('.my-type').text(typeStrs[1])
+            $t_me_times.find('.my-type-end').text(typeStrs[2])
+            if (mainData.activeState === PromotionStates.Registering) $t_me_times.hide()
+            else {
+              $t_me_times.show()
+              if (mainData.activeState === PromotionStates.Live) {
+                var totalTime = normalizedTime.endTime - normalizedTime.beginTime
+                detailPanelTimerDestructor = promotionUtils.createCountdown(normalizedTime.endTime, {
+                  onUpdate: function (remainingTime) {
+                    promotionUtils.updateElementsCountdown(remainingTime, totalTime, $t_me_times.find('.my-times'), $t_me_times.find('.my-progress'))
+                  }
+                })
+              } else {
+                // ended
+                $t_me_times.addClass('end')
+                // @ts-expect-error
+                $t_me_times.find('.my-times').text(new Date(normalizedTime.endTime).format('yyyy.MM.dd'))
+              }
             }
+
+            // 绑定 gamecode 切换事件
+            $content.find('.cont_nav2 > ul')[0].addEventListener('click', function (event) {
+              var target = /** @type {HTMLElement} */ (event.target)
+              if (target.tagName !== 'LI') return
+              activeTabIndex = undefined
+              toggleCode($(target).attr('data-code'))
+            })
+
+            // 绑定一个 gamecode 视图中的底部子 tab 切换事件
+            $content.find('.cont_nav1 > ul > li').each(function (_, ele) {
+              ele.addEventListener('click', function () {
+                toggleTab($(this).index())
+              })
+            })
+
+            // 绑定 Home 图标关闭当前详情视图事件
+            $content.find('.btn_home')[0].addEventListener('click', function () {
+              promotionUtils.soundTick('info')
+              detailPanelDestructor && detailPanelDestructor()
+            })
+
+            // 绑定全部关闭事件
+            $content.find('.btn-close')[0].addEventListener('click', function () {
+              promotionUtils.soundTick('info')
+              api.closeCategory()
+            })
           }
 
-          // 绑定 gamecode 切换事件
-          $content.find('.cont_nav2 > ul')[0].addEventListener('click', function (event) {
-            var target = /** @type {HTMLElement} */ (event.target)
-            if (target.tagName !== 'LI') return
-            activeTabIndex = undefined
-            toggleCode($(target).attr('data-code'))
-          })
+          var nav2LiHTML = detailData.list.reduce(function (prev, current) {
+            return prev + ('<li data-code="' + current.code + '">' + current.name + '</li>')
+          }, '')
 
-          // 绑定一个 gamecode 视图中的底部子 tab 切换事件
-          $content.find('.cont_nav1 > ul > li').each(function (_, ele) {
-            ele.addEventListener('click', function () {
-              toggleTab($(this).index())
-            })
-          })
+          $content.find('.cont_nav2 > ul').html(nav2LiHTML)
 
-          // 绑定关闭事件
-          $content.find('.btn_home')[0].addEventListener('click', function () {
-            detailPanelDestructor && detailPanelDestructor()
-          })
+          toggleCode(activeCode)
         }
 
-        var nav2LiHTML = detailData.list.reduce(function (prev, current) {
-          return prev + ('<li data-code="' + current.code + '">' + current.name + '</li>')
-        }, '')
+        var setup = function () {
+          loadDetailData(function (result) {
+            if (result.code !== 0) return
+            detailData = result.detailInfo
+            renderOrUpdateContent()
+          })
+        }
+        setup()
+        // 定时刷新
+        intervalRefreshTimer = window.setInterval(setup, 1000 * 60 * 2)
+      })
 
-        $content.find('.cont_nav2 > ul').html(nav2LiHTML)
-
-        toggleCode(activeCode)
-      }
-
-      var setup = function () {
-        loadDetailData(function (result) {
-          if (result.code !== 0) return
-          detailData = result.detailInfo
-          renderOrUpdateContent()
-        })
-      }
-      setup()
-      // 定时刷新
-      intervalRefreshTimer = window.setInterval(setup, 1000 * 60 * 2)
     }
 
     return api.defineMainComponent({
+      setup: function () {
+        this.mount()
+      },
       initialRender: function () {
         return promotionTemplate.createMainForTournament(
           promotionData,
           mainData.maxRankCount,
-          getPromotionState(promotionData.data.mainInfo.beginDate, promotionData.data.mainInfo.endDate)
+          mainData.activeState
         )
       },
       onMounted: function () {
@@ -472,8 +482,8 @@ var Tournament = /** @type {PromotionNS} */ ({});
           })
         }
 
-        // 绑定打开详情事件
-        assert(this.$$el)[0].addEventListener('click', function () {
+        // 绑定打开详情事件，在 iscroll 容器中，监听 tap 事件关闭
+        assert(this.$$el)[0].addEventListener('tap', function () {
           showDetailPanel()
         })
       },
@@ -484,35 +494,31 @@ var Tournament = /** @type {PromotionNS} */ ({});
       },
       startCountdown: function () {
         var ctx = this
-        var state = getPromotionState(promotionData.data.mainInfo.beginDate, promotionData.data.mainInfo.endDate)
-        var normalizedData = normalizePeriodDate(mainData.promotionData)
+        var normalizedTime = normalizePeriodTime(mainData.promotionData)
 
         /**
-         * 当前阶段的开始时间
-         * @type {string | undefined}
+         * 当前阶段的开始时间戳
+         * @type {number | undefined}
          */
-        var currentStageBeginDate
+        var currentStageBeginTime
         /**
-         * 当前阶段的结束时间
-         * @type {string | undefined} 
+         * 当前阶段的结束时间戳
+         * @type {number | undefined} 
          */
-        var currentStageEndDate
+        var currentStageEndTime
 
-        if (state === PromotionStates.Registering) {
-          currentStageBeginDate = normalizedData.openDate
-          currentStageEndDate = normalizedData.beginDate
-        } else if (state === PromotionStates.Live) {
-          currentStageBeginDate = normalizedData.beginDate
-          currentStageEndDate = normalizedData.endDate
+        if (mainData.activeState === PromotionStates.Registering) {
+          currentStageBeginTime = normalizedTime.openTime
+          currentStageEndTime = normalizedTime.beginTime
+        } else if (mainData.activeState === PromotionStates.Live) {
+          currentStageBeginTime = normalizedTime.beginTime
+          currentStageEndTime = normalizedTime.endTime
         }
 
-        if (!currentStageBeginDate || !currentStageEndDate) return
+        if (!currentStageBeginTime || !currentStageEndTime) return
 
-        var endTime = +getDate(currentStageEndDate)
-        var totalTime = endTime - +getDate(currentStageBeginDate)
-
-        timerDestructor = promotionUtils.createCountdown(currentStageEndDate, {
-          timeZone: mainData.timeZone,
+        var totalTime = currentStageEndTime - currentStageBeginTime
+        timerDestructor = promotionUtils.createCountdown(currentStageEndTime, {
           onUpdate: function (remainingTime) {
             promotionUtils.updateElementsCountdown(
               remainingTime,

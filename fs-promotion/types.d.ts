@@ -1,6 +1,6 @@
 declare type PromotionName = 'freespin' | 'tournament';
 
-declare type PromotionState = 'registering' | 'live' | 'ended'
+declare type PromotionState = 'registering' | 'live' | 'expired' | 'ended'
 
 declare interface Promotion {
   $receiveTimestamp: number
@@ -66,6 +66,7 @@ declare interface TournamentPromotion extends Promotion {
 
 declare interface PromotionData {
   __d: true
+  $receiveTimestamp: number
   name: PromotionName
   tranId: number
   data: {}
@@ -86,6 +87,7 @@ declare interface FreeSpinPromotionData extends PromotionData {
     serverTime: string
     tranId: number
     turnover: number,
+    tu: number,
     freeSpin: {
       acctId: string;
       gameCode: string;
@@ -110,6 +112,7 @@ declare interface TournamentPromotionData extends PromotionData {
       endDate: string
       name: string
       tranId: number
+      serverTime: string
     },
     subInfo: {
       amount: number
@@ -173,6 +176,17 @@ declare interface TournamentPromotionDetailData {
   }>
 }
 
+// 接口返回的分页数据结构
+declare interface Page {
+  firstPage: boolean
+  firstResult: number
+  lastPage: boolean
+  pageCount: number
+  pageNo: number
+  pageSize: number
+  resultCount: number
+}
+
 // 列表接口响应结构
 declare interface GameListRequestResult {
   code: number
@@ -188,6 +202,9 @@ declare interface GameListRequestResult {
       list: TournamentPromotionData['data'][]
       maxRankCount: number
       timeZone: string
+      page?: Page
+      // servertime
+      st: string
     }
   }
 }
@@ -199,9 +216,21 @@ declare interface TournamentDetailRequestResult {
   maxRankCount: number
 }
 
-declare type TournamentMainComponentData = Pick<Required<GameListRequestResult['map']>['B-TD01'], 'maxRankCount' | 'timeZone'> & { promotionData: TournamentPromotionData }
+declare interface MainComponentData {
+  promotionData: PromotionData
+  activeState: PromotionState
+}
 
-declare type FreeSpinMainComponentData = { promotionData: FreeSpinPromotionData }
+declare type TournamentMainComponentData = 
+  Pick<Required<GameListRequestResult['map']>['B-TD01'], 'maxRankCount'> &
+  MainComponentData &
+  {
+    promotionData: TournamentPromotionData
+  }
+
+declare interface FreeSpinMainComponentData extends MainComponentData {
+  promotionData: FreeSpinPromotionData
+}
 
 declare interface PromotionComponentOptions {
   setup?: () => void | (() => void)
@@ -238,6 +267,15 @@ declare type DefineComponentFunction = <T extends PromotionComponentOptions>(
   options: T & ThisType<PromotionComponentInstanceProperties & T>
 ) => PromotionComponent & T
 
+declare interface OpenCategoryOptions {
+  openDetail?: {
+    tranId: number
+    activeState: PromotionState
+  }
+}
+
+declare type DestoryCategoryDetailModalFunction = (options?: { animation?: boolean }) => void
+
 declare interface PromotionAPI {
   emitter: Emitter
   defineBannerComponent: DefineComponentFunction
@@ -246,16 +284,17 @@ declare interface PromotionAPI {
   // 关闭 banner 模块
   closeBanner: () => void
   // 展示分类模块
-  openCategory: () => void
+  openCategory: (options?: OpenCategoryOptions) => void
+  // 关闭分类模块
+  closeCategory: () => void
   // 分类模块的详情模态框
-  useCategoryDetailModal: (
-    promotionName: PromotionName,
+  useCategoryDetailModal: (callback: (doOpen: (
     $content: JQuery<HTMLElement>,
     options?: {
       wrapperClassNames?: string[],
       animation?: boolean
     }
-  ) => (options?: { animation?: boolean }) => void
+  ) => DestoryCategoryDetailModalFunction) => void) => void
 }
 
 declare interface PromotionNS {

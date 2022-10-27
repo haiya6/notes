@@ -57,11 +57,14 @@
     closeBanner: function () {
       promotionBanner.unmount()
     },
-    openCategory: function () {
-      promotionCategory.open()
+    openCategory: function (options) {
+      promotionCategory.open(options)
     },
-    useCategoryDetailModal: function (promotionName, $content, options) {
-      return promotionCategory.useCategoryDetailModal(promotionName, $content, options)
+    closeCategory: function () {
+      promotionCategory.destroy()
+    },
+    useCategoryDetailModal: function (doOpen) {
+      return promotionCategory.useCategoryDetailModal(doOpen)
     }
   }
 
@@ -73,40 +76,51 @@
   var promotionCategory = new PromotionCategory(api)
 
   /**
-   * @param {Promotion} promotion
+   * @param {Promotion} promotion 
    */
-  function addPromotion(promotion) {
-    promotions.push(promotion)
-    updateTag()
-    var ns = PromotionName2PromotionNS.get(promotion.name)
-    if (!ns) return
+  function notifyComponentUpdates(promotion) {
+    var bannerComponent = promotion2BannerComponent.get(promotion)
+    var tipComponent = promotion2TipComponent.get(promotion)
 
-    if (ns.createBannerComponent) {
-      var component = ns.createBannerComponent(promotion, api)
-      setupComponent(component)
-      promotion2BannerComponent.set(promotion, component)
-    }
-    
-    if (ns.createTipComponent) {
-      var component = ns.createTipComponent(promotion, api)
-      setupComponent(component)
-      promotion2TipComponent.set(promotion, component)
-    }
+    if (bannerComponent && bannerComponent.onUpdated) bannerComponent.onUpdated()
+    if (tipComponent && tipComponent.onUpdated) tipComponent.onUpdated()
   }
 
-  // function notifyComponentUpdates(source) {
-  //   /**
-  //    * @param {PromotionComponent} [component]
-  //    */
-  //   var callUpdateHookIfMounted = function (component) {
-  //     if (component && component.$$el) {
-  //       if (component.onUpdated) component.onUpdated()
-  //     }
-  //   }
-  //   if (!source || !source.instance) return
-  //   callUpdateHookIfMounted(source.instance.bannerComponent)
-  //   callUpdateHookIfMounted(source.instance.tipComponent)
-  // }
+  /**
+   * @param {Promotion} promotion
+   */
+  function addOrUpdatePromotion(promotion) {
+    var existingIndex = promotionUtils.findIndex(promotions, function (p) {
+      return p.tranId === promotion.tranId
+    })
+    if (existingIndex !== -1) {
+      // update
+      promotions[existingIndex].$receiveTimestamp = promotion.$receiveTimestamp
+      promotions[existingIndex].data = promotion.data
+      notifyComponentUpdates(promotions[existingIndex])
+    } else {
+      // create
+      promotions.push(promotion)
+      var ns = PromotionName2PromotionNS.get(promotion.name)
+      if (!ns) return
+
+      if (ns.createBannerComponent) {
+        var component = ns.createBannerComponent(promotion, api)
+        setupComponent(component)
+        promotion2BannerComponent.set(promotion, component)
+      }
+
+      if (ns.createTipComponent) {
+        var component = ns.createTipComponent(promotion, api)
+        setupComponent(component)
+        promotion2TipComponent.set(promotion, component)
+      }
+    }
+
+    updateTag()
+  }
+
+
 
   /**
    * @param {Promotion['tranId']} tranId
@@ -139,8 +153,7 @@
 
   function updateTag() {
     var count = promotions.reduce(function (prev, promotion) {
-      var normalizedDate = promotionUtils.normalizePeriodDate(promotion)
-      return prev + Number(promotionUtils.getPromotionState(normalizedDate.beginDate, normalizedDate.endDate) === PromotionStates.Live)
+      return prev + Number(promotionUtils.getPromotionState(promotion) === PromotionStates.Live)
     }, 0)
     var $tag = $('#controlbarH5 .tools_component')
     var $count = $tag.find('.gift_count')
@@ -151,9 +164,10 @@
 
   // freespin
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_OPEN, function (/** @type {any} */ data) {
+    var $receiveTimestamp = Date.now()
     promotionResourceLoader.load(PromotionNames.FreeSpin, data.languages, function () {
-      addPromotion({
-        $receiveTimestamp: Date.now(),
+      addOrUpdatePromotion({
+        $receiveTimestamp: $receiveTimestamp,
         name: PromotionNames.FreeSpin,
         tranId: data.tranId,
         data: data
@@ -161,20 +175,26 @@
     })
   })
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_ACCESS, function (/** @type {any} */ data) {
+    var $receiveTimestamp = Date.now()
     promotionResourceLoader.load(PromotionNames.FreeSpin, data.languages, function () {
-      // TODO update or add
+      addOrUpdatePromotion({
+        $receiveTimestamp: $receiveTimestamp,
+        name: PromotionNames.FreeSpin,
+        tranId: data.tranId,
+        data: data
+      })
     });
   })
   service.bindPushEvent(Service._Commands.FREESPIN_PROMOTION_CLOSE, function (/** @type {any} */ data) {
-    // TODO: 校验 tranId 正确性
     removePromotion(data.tranId)
   })
 
   // tournament
   service.bindPushEvent(Service._Commands.TOUR_OPEN, function (/** @type {any} */data) {
+    var $receiveTimestamp = Date.now()
     promotionResourceLoader.load(PromotionNames.Tournament, data.languages, function () {
-      addPromotion({
-        $receiveTimestamp: Date.now(),
+      addOrUpdatePromotion({
+        $receiveTimestamp: $receiveTimestamp,
         name: PromotionNames.Tournament,
         tranId: data.tranId,
         data: data
@@ -182,7 +202,6 @@
     })
   })
   service.bindPushEvent(Service._Commands.TOUR_CLOSE, function (/** @type {any} */data) {
-    // TODO: 校验 tranId 正确性
     removePromotion(data.tranId)
   })
 })();

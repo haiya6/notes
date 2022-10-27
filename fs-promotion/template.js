@@ -61,6 +61,9 @@ var promotionTemplate = {
 
     var html =
       '<div class="tips-single">' +
+      '    <div class="btn-close">' +
+      '       <span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' +
+      '    </div>' +
       '   <div class="tips-title">' + data.name + '</div>' +
       '   <div class="tips-text"><p>' + mm.formatStr(Locale.getString("TXT_PROMOTION_CURRENT_BET"), spade.content.currency + ' ' + mm.formatAmount(data.minBet, "")) + '</p></div>' +
       '   <div class="tips_times">' +
@@ -108,6 +111,9 @@ var promotionTemplate = {
 
     var html =
       '<div class="tips-single freespin">' +
+      '    <div class="btn-close">' +
+      '       <span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' +
+      '    </div>' +
       '   <div class="tips-freespin-type">' + Locale.getString("TXT_FREESPIN_TYPE").split("%n%")[Number(data.promotionCode[data.promotionCode.length - 1]) - 1] + '</div>' +
       '   <div class="tips-title">' + data.freeSpin.gameName + '</div>' +
       '   <div class="tips-text">' +
@@ -132,6 +138,7 @@ var promotionTemplate = {
   createMainForTournament: function (promotionData, maxRankCount, state) {
     var createGameListHTML = promotionTemplate.createGameList
     var html = ''
+    var normalizedTime = promotionUtils.normalizePeriodTime(promotionData)
     var data = promotionData.data
     var typeStr = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")[promotionUtils.state2RequestStatus[state] - 1]
     var rankStr = data.subInfo.rank == 0 ? maxRankCount + "+" : data.subInfo.rank
@@ -184,7 +191,7 @@ var promotionTemplate = {
         '  <div class="box_times">' +
         '    <span></span>' +
         // @ts-expect-error
-        '   <span>' + typeStr + ':' + new Date(SlotUtils.transDate(data.mainInfo.endDate)).format("yyyy.MM.dd") + '</span>' +
+        '   <span>' + typeStr + ':' + new Date(normalizedTime.endTime).format("yyyy.MM.dd") + '</span>' +
         '  </div>' +
         '</div>' +
         '<div class="box_center">' +
@@ -267,16 +274,16 @@ var promotionTemplate = {
   },
 
   /**
-   * @param {string} beginDate
-   * @param {string} endDate
+   * @param {number} beginTime
+   * @param {number} endTime
    * @param {TournamentPromotionDetailData['list'][number]} codeItemData 
    */
-  createDailyInfo: function (beginDate, endDate, codeItemData) {
+  createDailyInfo: function (beginTime, endTime, codeItemData) {
     var getDate = promotionUtils.getDate
     // @ts-expect-error
-    var beginDateStr = getDate(beginDate).format("yyyy-MM-dd") + " (" + getDate(beginDate).format("hh:mm:ss") + ")"
+    var beginDateStr = getDate(beginTime).format("yyyy-MM-dd") + " (" + getDate(beginTime).format("hh:mm:ss") + ")"
     // @ts-expect-error
-    var endDateStr = getDate(endDate).format("yyyy-MM-dd") + " (" + getDate(endDate).format("hh:mm:ss") + ")"
+    var endDateStr = getDate(endTime).format("yyyy-MM-dd") + " (" + getDate(endTime).format("hh:mm:ss") + ")"
 
     var ruleText = ''
     if (codeItemData.minBet) {
@@ -325,7 +332,10 @@ var promotionTemplate = {
       '    <div class="btn-close">' +
       '       <span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' + 
           '</div>' +
-      '      <div class="top-bar"><div class="title" key="TXT_TOURNAMENT"></div></div>' +
+      '      <div class="top-bar">' +
+      '       <div class="top-bar-icon bgimgtournament tour_title_icon"></div>' +
+      '         <div class="title" key="TXT_TOURNAMENT"></div>' +
+      '      </div>' +
       '      <div class="t_nav">' +
       '        <div class="t_game_list">' +
       '          <ul>' +
@@ -439,7 +449,7 @@ var promotionTemplate = {
       '       <i><span class="bgimgfreespin fr_normal"></span></i>' +
       '       <div>' +
       '         <p>' + Locale.getString("TXT_TITLE_FREESPIN") + '</p>' +
-      '         <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_WIN_DES"), 1000000) + '</p>' +
+      '         <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_WIN_DES"), mm.formatAmount(promotionData.data.tu, "")) + '</p>' +
       '       </div>' +
       '     </div>' +
       '     <div class="row2">' +
@@ -486,56 +496,114 @@ var promotionTemplate = {
     var beginDate = data.beginDate;
     var endDate = data.endDate;
 
+    var code = Number(data.promotionCode.replace('B-FS0', ''));
+    var typeStr = Locale.getString("TXT_FREESPIN_TYPE").split("%n%");
+    // @ts-expect-error
+    var fortmatDate = function(date) {
+      return date.split(' ')[0] + " (" + date.split(' ')[1] + ")";
+    }
+
     var html =
-      '<div class="free-detail">' +
-      '<div class="title">' +
-      '<span class="bgimgfreespin fr_normal"></span>' +
-      '<p><span>' + Locale.getString('TXT_TITLE_FREESPIN') + '</span></p>' +
-      '<div class="btn-close">' +
-      '<span class="icon-close bgimgStyle"></span>' +
-      '</div>' +
-      '</div>' +
+        '<div class="free-detail">' +
+          '<div class="title">' +
+            '<span class="bgimgfreespin fr_normal"></span>' +
+            '<p><span>' + Locale.getString('TXT_TITLE_FREESPIN') + '</span></p>' +
+            '<div class="btn-close">' +
+              '<span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' + 
+            '</div>' +
+          '</div>' +
 
           '<div class="content">' +
             '<div class="tab1">' +
-              '<p>this is page1</p>' +
+              '<h3>' +
+                '<div class="thumbnail-box">' +
+                  '<div class="img-box">' +
+                    '<img />' +
+                  '</div>' +
+                  '<div class="icon-box">' + 
+                    '<span class="bgimgfreespin fr_normal"></span>' +
+                  '</div>' +
+                '</div>' + 
+                '<i>' + Locale.getString('TXT_TITLE_FREESPIN') + ": " + typeStr[code - 1] + '</i>' +
+              '</h3>' +
+              '<div class="countdown-zoom">' +
+                '<div class="box_times">' +
+                  '<span>00:00:00</span>' +
+                  '<p><b></b></p>' +
+                  '<span></span>' +
+                '</div>' +
+              '</div>' +
+              '<div class="no-redeem free-status">' +
+                '<div class="icon-box">' +
+                  '<span class="bgimgfreespin freespin_promotion"></span>' +
+                  '<span class="icon-title">' + Locale.getString('TXT_TITLE_FREESPIN') + '</span>' +
+                '</div>' +
+                '<p class="redeem-desc">All free spins must be redeemed before the buffer time ends thus will be regarded as waiver.</p>' +
+                '<p class="redeem-desc">All results are all calculated by the system in which are subject to the system decision.</p>' +
+              '</div>' +
+              '<div class="enable-redeem free-status">' + 
+                (data.freeSpin ? ('<div>' +
+                  '<p class="redeem-desc">' + Locale.getString('TXT_FREESPIN_REDEEM_INFO1') + '</p>' +
+                  '<p class="redeem-desc bold">' + data.freeSpin.spinCount + " " + Locale.getString("TXT_TITLE_FREESPIN") + '</p>' +
+                  '<p class="redeem-desc">' + mm.formatStr(Locale.getString("TXT_FREESPIN_REDEEM_INFO2"), mm.formatAmount(data.freeSpin.totalBetAmt, ""), "1.2") +  '</p>' +
+                '</div>') : "") +
+                '<div class="icon-box">' +
+                  '<span class="bgimgfreespin freespin_promotion"></span>' +
+                  '<span class="icon-title">' + Locale.getString("TXT_TITLE_FREESPIN") +  '</span>' +
+                '</div>' +
+                '<p class="redeem-desc">' + Locale.getString('TXT_FREESPIN_REDEEM_TIP') +  '</p>' +
+                '<span class="redeem-btn"></span>' +
+              '</div>' +
             '</div>' +
             '<div class="tab2">' +
-              '<h3><span class="bgimgfreespin fr_normal"></span><i>Free Spin: Loyal</i></h3>' +
+              '<h3>' +
+                '<span class="bgimgfreespin fr_normal"></span>' +
+                '<i>' + Locale.getString('TXT_TITLE_FREESPIN') + ": " + typeStr[code - 1] + '</i>' +
+              '</h3>' +
               '<div class="daily_table">'+
                 '<div class="tr">'+
                   '<div class="td"><p>'+Locale.getString("TXT_TOURNAMENT_STARTTIME")+'</p><p>'+Locale.getString("TXT_TOURNAMENT_ENDTIME")+'</p></div>'+
-                  '<div class="td"><p>'+beginDate+'</p><p>'+endDate+'</p></div>'+
+                  '<div class="td"><p>'+fortmatDate(beginDate)+'</p><p>'+fortmatDate(endDate)+'</p></div>'+
                 '</div>'+
               '</div>'+
               '<div class="daily_text">' +
-                '<h4>' + Locale.getString('TXT_RULES') + '</h4>' +
-                '<p>' + Locale.getString("TXT_RULE_FREESPIN") + '</p>' +
-              '</div>' +
-              '<div class="daily_text">' +
                 '<h4>' + Locale.getString('TXT_TERMS') + '</h4>' +
-                '<p>' + Locale.getString("TXT_TERMS_FREESPIN") +'</p>' +
-              '</div>' +
+                '<p>' + Locale.getString("TXT_TERMS_FREESPIN").replace(/%%/ig, "<span class='").replace(/%/ig, "'></span>") + '</p>' +
+                '</div>' +
             '</div>' +
           '</div>' +
 
           '<div class="footer">' +
             '<div class="cont_nav1">' +
               '<ul>' +
-                '<li class="bgimgpromotion promotion_nav_bg"><span tag="tour_lead" class="bgimgfreespin fr_up"></span></li>'+
-                '<li class="bgimgpromotion promotion_nav_bg"><span tag="tour_info" class="bgimgpromotion promotion_info_up"></span></li>'+
-              '</ul>' +
+                '<li class="bgimgpromotion promotion_nav_bg on"><span baseImg="bgimgfreespin" tag="fr" class="bgimgfreespin fr_up"></span></li>'+
+                '<li class="bgimgpromotion promotion_nav_bg"><span baseImg="bgimgpromotion" tag="promotion_info" class="bgimgpromotion promotion_info_up"></span></li>' +
+                '</ul>' +
             '</div>' +
             '<div class="cont_nav2">' +
-              '<div class="name"><span>Free Spin Legend</span></div>' +
+              '<div class="name"><span>' + Locale.getString('TXT_TITLE_FREESPIN') + " " + typeStr[code - 1] +  '</span></div>' +
               '<div class="btn_home">' + 
-                '<span tag="promotion_home" class="bgimgpromotion promotion_home_up"></span>' +
+                '<span baseImg="bgimgpromotion" tag="promotion_home"  class="bgimgpromotion promotion_home_up"></span>' +
               '</div>' +
             '</div>' +
           '</div>' +
         '</div>';
 
     var $el = $(html);
+
+    $el.find('.daily_text .endDate').text(data.endDate)
+
+    if (data.freeSpin) {
+      $el.find('.enable-redeem').addClass('show');
+      $el.find('.thumbnail-box .icon-box').hide();
+      $el.find('.thumbnail-box img').attr('src', promotionUtils.getImgUrl(data.freeSpin.gameCode))
+      $el.find('.tab1 .redeem-btn').text(data.freeSpin.gameName);
+    } else {
+      $el.find('.no-redeem').addClass('show');
+      $el.find('.thumbnail-box .img-box').hide();
+      $el.find('.cont_nav1').css("visibility", "hidden");
+    }
+
     return $el;
   },
 

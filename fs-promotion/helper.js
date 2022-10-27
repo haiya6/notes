@@ -8,6 +8,7 @@ var PromotionNames = /** @type {const} */ ({
 var PromotionStates = /** @type {const} */ ({
   Registering: 'registering',
   Live: 'live',
+  Expired: 'expired',
   Ended: 'ended'
 })
 
@@ -301,32 +302,29 @@ var promotionUtils = {
   },
 
   /**
-   * @param {string} startDate
-   * @param {string} endDate
-   * @returns {PromotionState}
+   * @param {Promotion | PromotionData} promotion
    */
-  getPromotionState: function (startDate, endDate) {
-    var startTime = +promotionUtils.getDate(startDate)
-    var endTime = +promotionUtils.getDate(endDate)
+  getPromotionState: function (promotion) {
+    var normalizedTime = promotionUtils.normalizePeriodTime(promotion)
     var now = Date.now()
-    if (now < startTime) return PromotionStates.Registering
-    else if (now < endTime) return PromotionStates.Live
+
+    if (now < normalizedTime.beginTime) return PromotionStates.Registering
+    else if (now < normalizedTime.endTime) return PromotionStates.Live
+    else if (now < normalizedTime.closeTime) return PromotionStates.Expired
     else return PromotionStates.Ended
   },
 
   /**
-   * @param {string} targetDate
-   * @param {{ timeZone: string, onUpdate?: (remainingTime: number) => void, onComplete?: () => void }} options
+   * @param {number} targetTime
+   * @param {{ onUpdate?: (remainingTime: number) => void, onComplete?: () => void }} options
    */
-  createCountdown: function (targetDate, options) {
-    var targetTime = +promotionUtils.getDate(targetDate)
-
+  createCountdown: function (targetTime, options) {
     var destroy = function () {
       promotionUtils.ticker.remove(handler)
     }
 
     var handler = function () {
-      var remainingTime = Math.max(0, targetTime - (Date.now() + SlotUtils.getTimeZoneMillDiff(options.timeZone)))
+      var remainingTime = Math.max(0, targetTime - Date.now())
       if (options.onUpdate) options.onUpdate(remainingTime)
       if (remainingTime === 0) {
         destroy()
@@ -334,7 +332,7 @@ var promotionUtils = {
       }
     }
 
-    handler()
+    setTimeout(handler, 0);
     promotionUtils.ticker.add(handler)
 
     return destroy
@@ -343,6 +341,7 @@ var promotionUtils = {
   state2RequestStatus: {
     [PromotionStates.Registering]: 1,
     [PromotionStates.Live]: 2,
+    [PromotionStates.Expired]: -1,
     [PromotionStates.Ended]: 3,
   },
 
@@ -356,69 +355,105 @@ var promotionUtils = {
   },
 
   /**
-   * @typedef {object} NormalizedData
-   * @property {string} openDate
-   * @property {string} beginDate
-   * @property {string} endDate
-   * @property {string} closeDate
+   * @typedef {object} NormalizedTime
+   * @property {number} openTime
+   * @property {number} beginTime
+   * @property {number} endTime
+   * @property {number} closeTime
    */
   /**
-   * @type {<T extends Promotion | PromotionData>(data: T) => NormalizedData}
+   * @type {<T extends Promotion | PromotionData>(data: T) => NormalizedTime}
    */
-  normalizePeriodDate: function (promotion) {
+  normalizePeriodTime: function (promotion) {
+    var getDate = promotionUtils.getDate
+    var serverTime = +getDate(promotionUtils.getServerTimeStr(promotion))
+    var $receiveTimestamp = promotion.$receiveTimestamp
+    var timeDiff = $receiveTimestamp - serverTime
+    
+    /**
+     * @param {string} openDateStr
+     * @param {string} beginDateStr
+     * @param {string} endDateStr
+     * @param {string} closeDateStr
+     * @return {NormalizedTime}
+     */
+    var transform = function (openDateStr, beginDateStr, endDateStr, closeDateStr) {
+      return {
+        openTime: +getDate(openDateStr) + timeDiff,
+        beginTime: +getDate(beginDateStr) + timeDiff,
+        endTime: +getDate(endDateStr) + timeDiff,
+        closeTime: +getDate(closeDateStr) + timeDiff
+      }
+    }
+
     /**
      * @param {Promotion} promotion
-     * @returns {NormalizedData}
+     * @returns {NormalizedTime}
      */
     var handlePromotion = function (promotion) {
       switch (promotion.name) {
         case PromotionNames.Tournament:
           var _t = /** @type {TournamentPromotion} */ (promotion).data
-          return {
-            openDate: _t.countDownDate,
-            beginDate: _t.beginDate,
-            endDate: _t.endDate,
-            closeDate: _t.bufferZone,
-          }
+          return transform(_t.countDownDate, _t.beginDate, _t.endDate, _t.bufferZone)
         case PromotionNames.FreeSpin:
           var _p = /** @type {FreeSpinPromotion} */ (promotion).data
-          return {
-            openDate: _p.cd,
-            beginDate: _p.beginDate,
-            endDate: _p.endDate,
-            closeDate: _p.forfeitDate,
-          }
+          return transform(_p.cd, _p.beginDate, _p.endDate, _p.forfeitDate)
       }
     }
 
     /**
      * 
      * @param {PromotionData} promotionData
-     * @returns {NormalizedData}
+     * @returns {NormalizedTime}
      */
     var handlePromotionData = function (promotionData) {
       switch (promotion.name) {
         case PromotionNames.Tournament:
           var _td = /** @type {TournamentPromotionData} */ (promotionData).data
-          return {
-            openDate: _td.mainInfo.countDownDate,
-            beginDate: _td.mainInfo.beginDate,
-            endDate: _td.mainInfo.endDate,
-            closeDate: _td.mainInfo.closeDate,
-          }
+          return transform(_td.mainInfo.countDownDate, _td.mainInfo.beginDate, _td.mainInfo.endDate, _td.mainInfo.closeDate)
         case PromotionNames.FreeSpin:
           var _fd = /** @type {FreeSpinPromotionData} */ (promotionData).data
-          return {
-            openDate: _fd.cd,
-            beginDate: _fd.beginDate,
-            endDate: _fd.endDate,
-            closeDate: _fd.forfeitDate,
-          }
+          return transform(_fd.cd, _fd.beginDate, _fd.endDate, _fd.forfeitDate)
       }
     }
 
     if ('__d' in promotion) return handlePromotionData(promotion)
     else return handlePromotion(promotion)
+  },
+
+  /**
+   * @type {<T extends Promotion | PromotionData>(data: T) => string}
+   */
+  getServerTimeStr: function (promotion) {
+    /**
+     * @param {Promotion} promotion
+     * @returns {string}
+     */
+     var handlePromotion = function (promotion) {
+      switch (promotion.name) {
+        case PromotionNames.Tournament:
+          return /** @type {TournamentPromotion} */ (promotion).data.serverTime
+        case PromotionNames.FreeSpin:
+          return /** @type {FreeSpinPromotion} */ (promotion).data.serverTime
+      }
+     }
+
+    /**
+     * 
+     * @param {PromotionData} promotionData
+     * @returns {string}
+     */
+     var handlePromotionData = function (promotionData) {
+      switch (promotion.name) {
+        case PromotionNames.Tournament:
+          return /** @type {TournamentPromotionData} */ (promotionData).data.mainInfo.serverTime
+        case PromotionNames.FreeSpin:
+          return /** @type {FreeSpinPromotionData} */ (promotionData).data.serverTime
+      }
+     }
+
+     if ('__d' in promotion) return handlePromotionData(promotion)
+     else return handlePromotion(promotion)
   },
 
   /**
@@ -526,5 +561,7 @@ var promotionUtils = {
         return callback(promotionUtils._tournamentAllGamesCache)
       }
     })
-  }
+  },
+  
+  soundTick: mm.Class.prototype._soundTick
 }

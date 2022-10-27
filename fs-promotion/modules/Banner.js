@@ -57,15 +57,39 @@ PromotionBanner.prototype.mountContainer = function () {
   this.$indicators[0].addEventListener('click', function (event) {
     var target = /** @type {HTMLElement} */ (event.target)
     if (!$(target).hasClass('indicator')) return
+    promotionUtils.soundTick('info')
     ctx.toggleBanner($(target).index())
     ctx.startOrRestartAutoToggleTimer()
   })
-
   // 绑定关闭事件
   this.$body.find('.area-btn')[0].addEventListener('click', function () {
     ctx.unmount()
     ctx.api.openCategory()
   })
+  // 滑动切换事件
+  var moved = false
+  var startX = 0
+  interact(this.$body.find('.area-cont')[0])
+    .draggable({
+      onstart: function (/** @type {any} */ event) {
+        startX = event.pageX
+      },
+      onmove: function () {
+        moved = true
+      },
+      onend: function (/** @type {any} */ event) {
+        if (!moved) return
+        moved = false
+        var distance = (event.pageX - startX) / gameSize.scale
+        var bannerCount = ctx.components.length
+
+        if (distance >= 30) {
+          ctx.toggleBanner((bannerCount + ctx.currentIndex - 1) % bannerCount)
+        } else if (distance <= -30) {
+          ctx.toggleBanner((ctx.currentIndex + 1) % bannerCount)
+        }
+      }
+    })
 
   $('.controlbar_mobile_info').append(this.$root)
   this.mounted = true
@@ -73,8 +97,11 @@ PromotionBanner.prototype.mountContainer = function () {
 
 PromotionBanner.prototype.unmountContainer = function () {
   if (!this.mounted) return
-  promotionUtils.assert(this.$root).remove()
-  promotionUtils.assert(this.$mask).remove()
+  var assert = promotionUtils.assert
+  
+  interact(assert(this.$body).find('.area-cont')[0]).unset()
+  assert(this.$root).remove()
+  assert(this.$mask).remove()
   this.$root = this.$mask = this.$body = undefined
   this.mounted = false
   this.destroyAutoToggleTimer()
