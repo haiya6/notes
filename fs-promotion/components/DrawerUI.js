@@ -57,7 +57,7 @@ var DrawerUI = {
     $contentWraper.append($content)
     promotionUtils.localize($container)
     promotionUtils.addIconEvents($container)
-    $('#controlbarH5 .controlbar_component').append($container)
+    $('#controlbarH5 .controlbar_component_above').append($container)
 
     var tween = new TweenMax.to($contentWraper[0], 0.2, {
       y: 0,

@@ -104,17 +104,19 @@ var promotionTemplate = {
 
   /**
    * @param {FreeSpinPromotion} promotion
+   * @param {PromotionState} state 
    * @returns {JQuery<HTMLElement>}
    */
-  createTipItemForFreeSpin: function (promotion) {
+  createTipItemForFreeSpin: function (promotion, state) {
     var data = promotion.data
+    var typeStr = promotionUtils.getPromotionStateLocaleString(state)
 
     var html =
       '<div class="tips-single freespin">' +
       '    <div class="btn-close">' +
       '       <span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' +
       '    </div>' +
-      '   <div class="tips-freespin-type">' + Locale.getString("TXT_FREESPIN_TYPE").split("%n%")[Number(data.promotionCode[data.promotionCode.length - 1]) - 1] + '</div>' +
+      '   <div class="tips-freespin-type">' + Locale.getString("TXT_TITLE_FREESPIN3") + " " + Locale.getString("TXT_FREESPIN_TYPE").split("%n%")[Number(data.promotionCode[data.promotionCode.length - 1]) - 1] + '</div>' +
       '   <div class="tips-title">' + data.freeSpin.gameName + '</div>' +
       '   <div class="tips-text">' +
       '     <p>' + Locale.getString('TXT_FREESPIN_REDEEM_TIP01') + '<span>' + mm.formatStr(Locale.getString("TXT_FREESPIN_REDEEM_TIP02"), data.freeSpin.spinCount) + '</span></p>' +
@@ -123,7 +125,7 @@ var promotionTemplate = {
       '   <div class="tips_times">' +
       '       <span></span>' +
       '       <p><b></b></p>' +
-      '       <span class="state">' + Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")[1] + '</span>' +
+      '       <span class="state">' + typeStr + '</span>' +
       '   </div>' +
       '   <div class="freespin-btn">' + Locale.getString("TXT_YES_FREESPIN") + '</div>' +
       '</div>'
@@ -140,11 +142,11 @@ var promotionTemplate = {
     var html = ''
     var normalizedTime = promotionUtils.normalizePeriodTime(promotionData)
     var data = promotionData.data
-    var typeStr = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")[promotionUtils.state2RequestStatus[state] - 1]
+    var typeStr = promotionUtils.getPromotionStateLocaleString(state)
     var rankStr = data.subInfo.rank == 0 ? maxRankCount + "+" : data.subInfo.rank
     var tourIconTag = 'tour_big_icon' + (spade.content.hideProviderLogo ? '_no' : '')
 
-    if (state === PromotionStates.Registering) {
+    if (state === PromotionStates.StartIn) {
       html = '<div class="box_list_info component_tournament">' +
         '<div class="box_left">' +
         ' <ul data="2">' + createGameListHTML(data.subInfo.gameList) + '</ul>' +
@@ -163,7 +165,7 @@ var promotionTemplate = {
         '</div>' +
         '<div class="box_right"><span class="bgimgtournament_lan ' + tourIconTag + '"></span></div>' +
         '</div>'
-    } else if (state === PromotionStates.Live) {
+    } else if (state === PromotionStates.EndIn) {
       html = '<div class="box_list_info live component_tournament">' +
         '<div class="box_left">' +
         ' <ul data="2">' + createGameListHTML(data.subInfo.gameList) + '</ul>' +
@@ -189,9 +191,8 @@ var promotionTemplate = {
         '<div class="box_left">' +
         ' <ul data="2">' + createGameListHTML(data.subInfo.gameList) + '</ul>' +
         '  <div class="box_times">' +
-        '    <span></span>' +
-        // @ts-expect-error
-        '   <span>' + typeStr + ':' + new Date(normalizedTime.endTime).format("yyyy.MM.dd") + '</span>' +
+        '   <span>' + typeStr + ':' +
+        '   <br>'+ new Date(normalizedTime.endTime).format("yyyy.MM.dd") + '</span>' +
         '  </div>' +
         '</div>' +
         '<div class="box_center">' +
@@ -441,22 +442,22 @@ var promotionTemplate = {
   */
   createMainForFreeSpin: function (promotionData, state) {
     var data = promotionData.data
-    var typeStr = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")[promotionUtils.state2RequestStatus[state] - 1]
+    var typeStr = promotionUtils.getPromotionStateLocaleString(state)
     var html =
       ' <div class="box_list_info component_freespin">' +
       '   <div class="box_left">' +
       '     <div class="row1">' +
       '       <i><span class="bgimgfreespin fr_normal"></span></i>' +
       '       <div>' +
-      '         <p>' + Locale.getString("TXT_TITLE_FREESPIN") + '</p>' +
-      '         <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_WIN_DES"), mm.formatAmount(promotionData.data.tu, "")) + '</p>' +
+      '         <p>' + promotionData.data.name + '</p>' +
+      '         <p>' + mm.formatStr(Locale.getString("TXT_FREESPIN_WIN_DES"), promotionData.data.tu) + '</p>' +
       '       </div>' +
       '     </div>' +
       '     <div class="row2">' +
       '       <div class="box_times">' +
       '         <span>00:00:00</span>' +
       '         <p><b></b></p>' +
-      '         <span>' + typeStr + '</span>' +
+      '         <span class="state">' + typeStr + '</span>' +
       '       </div>' +
       '       <div class="redeem-box">' +
       '         <div class="btn redeem">' +
@@ -474,13 +475,14 @@ var promotionTemplate = {
       '   </div>' +
       '   <div class="box_right">' +
       '     <span class="bgimgfreespin freespin_promotion"></span>' +
+      '     <span class="icon-title">' + Locale.getString('TXT_TITLE_FREESPIN') +'</span>' +
       '   </div>' +
       ' </div>'
       ;
 
 
     var $el = $(html);
-    if (state === PromotionStates.Live) {
+    if (state === PromotionStates.EndIn || state === PromotionStates.ExpiredIn) {
       if (data.freeSpin) $el.find('.redeem').show();
       if (!data.freeSpin && data.rt) $el.find('.fully-redeem').show()
     }
@@ -507,7 +509,7 @@ var promotionTemplate = {
         '<div class="free-detail">' +
           '<div class="title">' +
             '<span class="bgimgfreespin fr_normal"></span>' +
-            '<p><span>' + Locale.getString('TXT_TITLE_FREESPIN') + '</span></p>' +
+            '<p><span>' + Locale.getString('TXT_TITLE_FREESPIN3') + '</span></p>' +
             '<div class="btn-close">' +
               '<span baseimg="bgimgpromotion " tag="promotion_close" class="bgimgpromotion  promotion_close_up"></span>' + 
             '</div>' +
@@ -524,7 +526,7 @@ var promotionTemplate = {
                     '<span class="bgimgfreespin fr_normal"></span>' +
                   '</div>' +
                 '</div>' + 
-                '<i>' + Locale.getString('TXT_TITLE_FREESPIN') + ": " + typeStr[code - 1] + '</i>' +
+                '<i>' + Locale.getString('TXT_TITLE_FREESPIN3') + ": " + typeStr[code - 1] + '</i>' +
               '</h3>' +
               '<div class="countdown-zoom">' +
                 '<div class="box_times">' +
@@ -538,15 +540,15 @@ var promotionTemplate = {
                   '<span class="bgimgfreespin freespin_promotion"></span>' +
                   '<span class="icon-title">' + Locale.getString('TXT_TITLE_FREESPIN') + '</span>' +
                 '</div>' +
-                '<p class="redeem-desc">All free spins must be redeemed before the buffer time ends thus will be regarded as waiver.</p>' +
-                '<p class="redeem-desc">All results are all calculated by the system in which are subject to the system decision.</p>' +
+                '<p class="redeem-desc" key="TXT_FREESPIN_DESC01"></p>' +
+                '<p class="redeem-desc" key="TXT_FREESPIN_DESC02"></p>' +
               '</div>' +
               '<div class="enable-redeem free-status">' + 
-                (data.freeSpin ? ('<div>' +
+                '<div class="redeem-info">' +
                   '<p class="redeem-desc">' + Locale.getString('TXT_FREESPIN_REDEEM_INFO1') + '</p>' +
-                  '<p class="redeem-desc bold">' + data.freeSpin.spinCount + " " + Locale.getString("TXT_TITLE_FREESPIN") + '</p>' +
-                  '<p class="redeem-desc">' + mm.formatStr(Locale.getString("TXT_FREESPIN_REDEEM_INFO2"), mm.formatAmount(data.freeSpin.totalBetAmt, ""), "1.2") +  '</p>' +
-                '</div>') : "") +
+                  '<p class="redeem-desc bold">' + (data.freeSpin || {}).spinCount + " " + Locale.getString("TXT_TITLE_FREESPIN2") + (spade.content.language == 'zh_CN' ? '<span>活动</span>' : '') + '</p>' +
+                  '<p class="redeem-desc">' + mm.format(Locale.getString("TXT_FREESPIN_REDEEM_INFO2"), mm.formatAmount((data.freeSpin || {}).totalBetAmt, ""), data.promotionCode == "B-FS01" || data.promotionCode == "B-FS02" /** 随机玩家和指定玩家 */ ? data.name : mm.formatAmount(data.turnover)) +  '</p>' +
+                '</div>' +
                 '<div class="icon-box">' +
                   '<span class="bgimgfreespin freespin_promotion"></span>' +
                   '<span class="icon-title">' + Locale.getString("TXT_TITLE_FREESPIN") +  '</span>' +
@@ -554,11 +556,14 @@ var promotionTemplate = {
                 '<p class="redeem-desc">' + Locale.getString('TXT_FREESPIN_REDEEM_TIP') +  '</p>' +
                 '<span class="redeem-btn"></span>' +
               '</div>' +
+              '<div class="freespin_error bgimgfreespin freespin_promotion_error_bg none">' +
+                '<p>' + Locale.getString("TXT_NO_QUALIFIED_FREESPIN") + '</p>'+
+              '</div>' +
             '</div>' +
             '<div class="tab2">' +
               '<h3>' +
                 '<span class="bgimgfreespin fr_normal"></span>' +
-                '<i>' + Locale.getString('TXT_TITLE_FREESPIN') + ": " + typeStr[code - 1] + '</i>' +
+                '<i>' + Locale.getString('TXT_TITLE_FREESPIN3') + ": " + typeStr[code - 1] + '</i>' +
               '</h3>' +
               '<div class="daily_table">'+
                 '<div class="tr">'+
@@ -567,9 +572,17 @@ var promotionTemplate = {
                 '</div>'+
               '</div>'+
               '<div class="daily_text">' +
+                '<h4>' + Locale.getString('TXT_RULES') +  '</h4>' +
+                '<p>' + Locale.getString('TXT_RULE_FREESPIN').replace(/%%/ig, "<span class='").replace(/%/ig, "'></span>") + '</p>' +
+              '</div>' +
+              '<div class="daily_text">' +
                 '<h4>' + Locale.getString('TXT_TERMS') + '</h4>' +
-                '<p>' + Locale.getString("TXT_TERMS_FREESPIN").replace(/%%/ig, "<span class='").replace(/%/ig, "'></span>") + '</p>' +
-                '</div>' +
+                '<p>' + 
+                  "1. " + Locale.getString("TXT_FREESPIN_DESC01") +
+                  '<br><br>' +
+                  "2. " + Locale.getString("TXT_FREESPIN_DESC02") +
+                '</p>' +
+              '</div>' +
             '</div>' +
           '</div>' +
 
@@ -581,7 +594,7 @@ var promotionTemplate = {
                 '</ul>' +
             '</div>' +
             '<div class="cont_nav2">' +
-              '<div class="name"><span>' + Locale.getString('TXT_TITLE_FREESPIN') + " " + typeStr[code - 1] +  '</span></div>' +
+              '<div class="name"><span>' + Locale.getString('TXT_TITLE_FREESPIN3') + " " + typeStr[code - 1] +  '</span></div>' +
               '<div class="btn_home">' + 
                 '<span baseImg="bgimgpromotion" tag="promotion_home"  class="bgimgpromotion promotion_home_up"></span>' +
               '</div>' +
@@ -590,21 +603,45 @@ var promotionTemplate = {
         '</div>';
 
     var $el = $(html);
-
     $el.find('.daily_text .endDate').text(data.endDate)
 
+    this.updateFreespinDetailTemplate(promotionData, $el);
+
+    return $el;
+  },
+
+  /**
+  * @param {FreeSpinPromotionData} promotionData 
+  * @param {JQuery<HTMLElement>} $el
+  */
+  updateFreespinDetailTemplate: function(promotionData, $el) {
+    var data = promotionData.data;
+
     if (data.freeSpin) {
+      $el.find('.no-redeem').removeClass('show');
       $el.find('.enable-redeem').addClass('show');
       $el.find('.thumbnail-box .icon-box').hide();
-      $el.find('.thumbnail-box img').attr('src', promotionUtils.getImgUrl(data.freeSpin.gameCode))
+      $el.find('.thumbnail-box .img-box').show();
+      $el.find('.thumbnail-box .img-box img').attr('src', promotionUtils.getImgUrl(data.freeSpin.gameCode))
       $el.find('.tab1 .redeem-btn').text(data.freeSpin.gameName);
+      $el.find('.cont_nav1').css("visibility", "");
+
+      $el.find('.daily_text .spincount').text(data.freeSpin.spinCount); /// 次数
+      $el.find('.daily_text .totalbet').text(mm.formatAmount(data.freeSpin.totalBetAmt, "")); ////总赌注
+
+      // 随机玩家和指定玩家
+      if (data.promotionCode == "B-FS01" || data.promotionCode == "B-FS02") {
+        $el.find('.daily_text .turnover').text(data.name); ///投注额
+      } else {
+        $el.find('.daily_text .turnover').text(mm.formatAmount(data.turnover, "")); //// 投注额
+      }
+      $el.find('.daily_text .endForfeitDate').text(data.forfeitDate.split(' ')[0]); //// 时间
+      $el.find('.daily_text .endForfeitDateHMS').text(data.forfeitDate.split(' ')[1]); //// 时间
     } else {
       $el.find('.no-redeem').addClass('show');
       $el.find('.thumbnail-box .img-box').hide();
       $el.find('.cont_nav1').css("visibility", "hidden");
     }
-
-    return $el;
   },
 
   /**
@@ -619,7 +656,7 @@ var promotionTemplate = {
       gameCodes.forEach(function (code) {
         gamesHTML += '<li>' +
           '<div class="i_top">' +
-          '  <img src="' + promotionUtils.getImgUrl(code) + '"/>' +
+          '  <img src="' + promotionUtils.getImgUrl(code, true) + '"/>' +
           '</div>' +
           '<div class="i_info">' +
           '  <h3>' + allGames[code] + '</h3>' +

@@ -1,13 +1,19 @@
 declare type PromotionName = 'freespin' | 'tournament';
 
-declare type PromotionState = 'registering' | 'live' | 'expired' | 'ended'
+declare type PromotionState = 'invalid' | 'startIn' | 'endIn' | 'expiredIn' | 'expired'
+
+declare type PromotionCategoryName = 'registering' | 'live' | 'ended'
 
 declare interface Promotion {
   $receiveTimestamp: number
   name: PromotionName
   tranId: number
-  data: {}
+  data: {
+    languages: string[]
+  }
 }
+
+declare type CustomData = Record<string, any>
 
 declare interface FreeSpinPromotion extends Promotion {
   name: 'freespin'
@@ -218,7 +224,7 @@ declare interface TournamentDetailRequestResult {
 
 declare interface MainComponentData {
   promotionData: PromotionData
-  activeState: PromotionState
+  activeCategoryName: PromotionCategoryName
 }
 
 declare type TournamentMainComponentData = 
@@ -245,7 +251,7 @@ declare interface PromotionComponentOptions {
   // 组件不活跃（从显示到不显示）
   onDeactivated?: () => void
   // 在 DOM 卸载之前
-  onBeforeUnmount?: () => void
+  onBeforeUnmount?: (unmountCustomData?: CustomData) => void
   // 给了此钩子之后，会在卸载前触发此钩子并传递一个卸载函数，在调用此函数后，依然会走 onBeforeUnmount 回调，然后真正的 DOM 移除
   onDelayUnmount?: (doUnmount: () => void) => void
   // 组件将被移除时执行，在 promotion 数据被移除，如后台的关闭推送，
@@ -257,8 +263,10 @@ declare interface PromotionComponentInstanceProperties {
   $$el?: JQuery<HTMLElement>
   // 挂载自身（会走生命周期）
   mount: () => void
+  // 卸载时传递给 beforeUnmount 的参数
+  _unmountCustomData?: CustomData
   // 卸载自身（会走生命周期）
-  unmount: () => void
+  unmount: (data?: CustomData) => void
 }
 
 declare type PromotionComponent = PromotionComponentOptions & PromotionComponentInstanceProperties
@@ -268,13 +276,17 @@ declare type DefineComponentFunction = <T extends PromotionComponentOptions>(
 ) => PromotionComponent & T
 
 declare interface OpenCategoryOptions {
+  // 打开指定的 Tab
+  categoryName?: PromotionCategoryName
+  // 打开详情
   openDetail?: {
     tranId: number
-    activeState: PromotionState
+    // 这个 tranId 所在的分类名称
+    activeCategoryName: PromotionCategoryName
   }
 }
 
-declare type DestoryCategoryDetailModalFunction = (options?: { animation?: boolean }) => void
+declare type DestroyCategoryDetailModalFunction = (options?: { animation?: boolean }) => void
 
 declare interface PromotionAPI {
   emitter: Emitter
@@ -283,6 +295,8 @@ declare interface PromotionAPI {
   defineMainComponent: DefineComponentFunction
   // 关闭 banner 模块
   closeBanner: () => void
+  // 关闭 tip 模块
+  closeTip: () => void
   // 展示分类模块
   openCategory: (options?: OpenCategoryOptions) => void
   // 关闭分类模块
@@ -294,7 +308,7 @@ declare interface PromotionAPI {
       wrapperClassNames?: string[],
       animation?: boolean
     }
-  ) => DestoryCategoryDetailModalFunction) => void) => void
+  ) => DestroyCategoryDetailModalFunction) => void) => void
 }
 
 declare interface PromotionNS {

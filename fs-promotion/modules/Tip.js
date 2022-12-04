@@ -46,13 +46,14 @@ PromotionTip.prototype.mountContainer = function () {
   )
 
   this.$root.append(this.$body)
-  $('.controlbar_mobile_info').append(this.$root)
+  $('.controlbar_component').append(this.$root)
 
   this.tryInitOrRefreshScroll()
   this.mounted = true
 }
 
 PromotionTip.prototype.unmountContainer = function () {
+  if (!this.mounted) return
   var assert = promotionUtils.assert
   this.destroyScroll()
   assert(this.$root).remove()
@@ -62,24 +63,35 @@ PromotionTip.prototype.unmountContainer = function () {
 }
 
 PromotionTip.prototype.tryInitOrRefreshScroll = function () {
+  var ctx = this
   var assert = promotionUtils.assert
-  var itemCount = assert(this.$body).find('.tips-single')
 
-  if (itemCount.length > 3) {
-    if (this.scrollIns) this.scrollIns.refresh()
-    else {
-      assert(this.$body).find('.tips-content').addClass('scroll')
-      this.scrollIns = new IScroll(assert(this.$body).find('.scroll-container')[0], {
-        moveScale: 1,
-        mouseWheel: true,
-        useTransform: !mm.device.isIos(),
-        scrollbars: true,
-        bounce: false
-      })
+  var handler = function () {
+    if (!ctx.mounted) return
+    var $container = assert(ctx.$body).find('.scroll-container')
+    var $containerParent = $container.parent('.tips-content')
+    var maxHeight = 916
+    var contentHeight = assert($container.find('.tips-info').height())
+
+    if (contentHeight > maxHeight) {
+      $containerParent.css('height', maxHeight + 'px')
+      if (ctx.scrollIns) ctx.scrollIns.refresh()
+      else {
+        ctx.scrollIns = new IScroll($container[0], {
+          moveScale: 1 / gameSize.scale,
+          mouseWheel: true,
+          useTransform: !mm.device.isIos(),
+          scrollbars: true,
+          bounce: false
+        })
+      }
+    } else {
+      $containerParent.css('height', 'auto')
+      ctx.destroyScroll()
     }
-  } else {
-    this.destroyScroll()
   }
+
+  window.setTimeout(handler, 0)
 }
 
 PromotionTip.prototype.destroyScroll = function () {
@@ -87,8 +99,7 @@ PromotionTip.prototype.destroyScroll = function () {
   if (this.scrollIns) {
     this.scrollIns.destroy()
     this.scrollIns = undefined
-    assert(this.$body).find('.tips-content').removeClass('scroll')
-    assert(this.$body).find('.scroll-container').attr('style', '')
+    assert(this.$body).find('.scroll-container .main-scroll').attr('style', '')
   }
 }
 
@@ -97,20 +108,33 @@ PromotionTip.prototype.destroyScroll = function () {
  */
 PromotionTip.prototype.appendTip = function (component) {
   var assert = promotionUtils.assert
+  if (spade.content.luckyId || spade.betInfo.isFreeMode) return
+  var existingIndex = this.components.indexOf(component)
+  if (existingIndex !== -1) return
   if (!this.mounted) this.mountContainer()
   this.components.push(component)
   component.$$el = component.initialRender()
   promotionUtils.addIconEvents(component.$$el)
   assert(this.$body).find('.tips-info').append(component.$$el)
-  this.tryInitOrRefreshScroll()
   if (component.onMounted) component.onMounted()
+  this.tryInitOrRefreshScroll()
+}
+
+/**
+ * @param {PromotionComponent} component 
+ */
+PromotionTip.prototype.updateTip = function (component) {
+  if (component.onUpdated) component.onUpdated()
+  this.tryInitOrRefreshScroll()
 }
 
 /**
  * @param {PromotionComponent} component 
  */
 PromotionTip.prototype.removeTip = function (component) {
+  var ctx = this
   if (!this.mounted) return
+  var assert = promotionUtils.assert
   var willRemoveIndex = this.components.indexOf(component)
   if (willRemoveIndex === -1) return
   // 移除数据
@@ -119,18 +143,27 @@ PromotionTip.prototype.removeTip = function (component) {
   // 若没有挂载
   if (!component.$$el) return
 
-  // onBeforeUnmount hook
-  if (component.onBeforeUnmount) component.onBeforeUnmount()
-  // 仅这一条数据，直接卸载容器
-  if (this.components.length === 0) {
-    this.unmountContainer()
-  } else {
-    // 还有其它数据，移动 DOM 即可
-    component.$$el.remove()
-    this.tryInitOrRefreshScroll()
-  }
-
-  component.$$el = undefined
+  new TweenMax(component.$$el[0], 0.2, {
+    height: 0,
+    padding: 0,
+    opacity: 0,
+    onUpdate: function () {
+      ctx.tryInitOrRefreshScroll()
+    },
+    onComplete: function () {
+      // onBeforeUnmount hook
+      if (component.onBeforeUnmount) component.onBeforeUnmount()
+      assert(component.$$el).remove()
+      component.$$el = undefined
+      // 仅这一条数据，卸载容器
+      if (ctx.components.length === 0) {
+        ctx.unmountContainer()
+      } else {
+        // 还有其它数据
+        ctx.tryInitOrRefreshScroll()
+      }
+    }
+  })
 }
 
 PromotionTip.prototype.unmount = function () {

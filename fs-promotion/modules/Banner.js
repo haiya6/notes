@@ -43,6 +43,7 @@ PromotionBanner.prototype.mountContainer = function () {
     '<div class="promotion_box_container">' +
     ' <div class="p_area">' +
     '   <div class="area-btn"></div>' +
+    '   <div class="area-interact"></div>' +
     '   <div class="area-cont">' +
     '   </div>' +
     '   <div class="area-buttons">' +
@@ -69,7 +70,7 @@ PromotionBanner.prototype.mountContainer = function () {
   // 滑动切换事件
   var moved = false
   var startX = 0
-  interact(this.$body.find('.area-cont')[0])
+  interact(this.$body.find('.area-interact')[0])
     .draggable({
       onstart: function (/** @type {any} */ event) {
         startX = event.pageX
@@ -85,13 +86,15 @@ PromotionBanner.prototype.mountContainer = function () {
 
         if (distance >= 30) {
           ctx.toggleBanner((bannerCount + ctx.currentIndex - 1) % bannerCount)
+          ctx.startOrRestartAutoToggleTimer()
         } else if (distance <= -30) {
           ctx.toggleBanner((ctx.currentIndex + 1) % bannerCount)
+          ctx.startOrRestartAutoToggleTimer()
         }
       }
     })
 
-  $('.controlbar_mobile_info').append(this.$root)
+  $('.controlbar_component_above').append(this.$root)
   this.mounted = true
 }
 
@@ -99,7 +102,7 @@ PromotionBanner.prototype.unmountContainer = function () {
   if (!this.mounted) return
   var assert = promotionUtils.assert
   
-  interact(assert(this.$body).find('.area-cont')[0]).unset()
+  interact(assert(this.$body).find('.area-interact')[0]).unset()
   assert(this.$root).remove()
   assert(this.$mask).remove()
   this.$root = this.$mask = this.$body = undefined
@@ -124,6 +127,9 @@ PromotionBanner.prototype.unmount = function () {
  */
 PromotionBanner.prototype.appendBanner = function (component) {
   var assert = promotionUtils.assert
+  if (spade.betInfo.isFreeMode) return
+  var existingIndex = this.components.indexOf(component)
+  if (existingIndex !== -1) return
   var thisTimeMountedContainer = false
   if (!this.mounted) {
     this.mountContainer()
@@ -136,6 +142,13 @@ PromotionBanner.prototype.appendBanner = function (component) {
     this.toggleBanner(0)
     this.startOrRestartAutoToggleTimer()
   }
+}
+
+/**
+ * @param {PromotionComponent} component
+ */
+PromotionBanner.prototype.updateBanner = function (component) {
+  if (component.onUpdated) component.onUpdated()
 }
 
 /**
@@ -159,21 +172,20 @@ PromotionBanner.prototype.removeBanner = function (component) {
   if (!component.$$el) return
 
   if (component.onBeforeUnmount) component.onBeforeUnmount()
-  // 若销毁的是当前正在展示的 banner
-  if (component === currentComponent) {
-    if (this.components.length === 0) {
-      // 且没有更多了
-      this.unmountContainer()
-    } else {
-      // 有更多，切换至下一个
-      this.toggleBanner(willRemoveIndex > this.components.length - 1 ? 0 : willRemoveIndex)
-      this.startOrRestartAutoToggleTimer()
-    }
-  } else {
-    // 需要销毁的不是不是正在展示的 banner，直接删除 DOM 即可
-    component.$$el.remove()
+
+  // 没有更多了
+  if (this.components.length === 0) {
+    this.unmountContainer()
+  } else if (component === currentComponent) {
+    // 若销毁的是当前正在展示的 banner，切换至下一个
+    this.toggleBanner(willRemoveIndex % this.components.length)
+    this.startOrRestartAutoToggleTimer()
+  } else if (willRemoveIndex < this.currentIndex) {
+    // 如果移除的索引比当前的索引小，则需要修复一下当前的索引实际值
+    this.currentIndex--
   }
-  
+
+  component.$$el.remove()
   component.$$el = undefined
 }
 
@@ -181,7 +193,6 @@ PromotionBanner.prototype.removeBanner = function (component) {
  * @param {number} targetIndex 
  */
 PromotionBanner.prototype.toggleBanner = function (targetIndex) {
-  if (targetIndex === this.currentIndex) return
   var targetComponent = this.components[targetIndex]
   if (!targetComponent) return
 
@@ -217,7 +228,6 @@ PromotionBanner.prototype.toggleBanner = function (targetIndex) {
 }
 
 PromotionBanner.prototype.startOrRestartAutoToggleTimer = function () {
-  return
   var ctx = this
   this.destroyAutoToggleTimer()
   this.autoToggerTimer = window.setInterval(function () {

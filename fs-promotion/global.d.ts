@@ -14,3 +14,7 @@ declare let SlotUtils: any
 declare let app: any
 declare let scene: any
 declare let interact: any
+
+interface Date {
+  format: (arg: string) => string
+}

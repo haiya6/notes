@@ -6,9 +6,16 @@ var PromotionNames = /** @type {const} */ ({
 })
 
 var PromotionStates = /** @type {const} */ ({
+  Invalid: 'invalid',
+  StartIn: 'startIn',
+  EndIn: 'endIn',
+  ExpiredIn: 'expiredIn',
+  Expired: 'expired'
+})
+
+var PromotionCategoryNames = /** @type {const} */ ({
   Registering: 'registering',
   Live: 'live',
-  Expired: 'expired',
   Ended: 'ended'
 })
 
@@ -74,6 +81,13 @@ Emitter.prototype.emit = function (eventName) {
 }
 
 var promotionResourceLoader = {
+  language: '',
+  /**
+   * 获取当前设置的语言，默认为 en_US
+   */
+  getLanguage: function () {
+    return promotionResourceLoader.language || 'en_US'
+  },
   /**
    * @type {{ [p: string]: boolean | (() => void)[] }}
    */
@@ -82,25 +96,25 @@ var promotionResourceLoader = {
     "freespin": false,
     "tournament": false,
   },
+  jsonMapLoaded: false,
   /**
    * 
    * @param {string} name 
-   * @param {string[] | undefined} languages 
    * @param {() => void} callback
    */
-  load: function (name, languages, callback) {
+  load: function (name, callback) {
     var self = this;
-    this.loadPromotion("common", languages, function () {
-      self.loadPromotion(name, languages, callback)
+    this.loadPromotion("common", function () {
+      self.loadPromotion(name, callback)
     });
   },
   /**
    * 
    * @param {string} name 
-   * @param {string[] | undefined} languages 
    * @param {() => void} callback
    */
-  loadPromotion: function (name, languages, callback) {
+  loadPromotion: function (name, callback) {
+    var language = promotionResourceLoader.getLanguage()
     var stateOrCallbacks = this.state[name]
 
     if (stateOrCallbacks === true) {
@@ -110,8 +124,6 @@ var promotionResourceLoader = {
     }
 
     this.state[name] = [callback]
-    languages = languages || ['en_US', 'zh_CN']
-    var language = languages.indexOf(spade.content.language) > -1 ? spade.content.language : 'en_US'
     var resources = resource_promotion.getResource(name, language)
 
     var cssHTML = ''
@@ -130,8 +142,10 @@ var promotionResourceLoader = {
         promotionResourceLoader.state[name] = true
       }
 
-      // self._initJsonMap(lan, cb)
-      if (Locale.getString("TXT_PROMOTION") != "TXT_PROMOTION" || name === "common") return finalCallback()
+      if (name === 'common' || promotionResourceLoader.jsonMapLoaded) {
+        return finalCallback()
+      }
+      promotionResourceLoader.jsonMapLoaded = true
       Locale.initJsonMap('../../../fscommon/components/promotionlocale/' + language + '.json', finalCallback, mm.game.config["ver"])
     }
     /**
@@ -244,11 +258,11 @@ var promotionUtils = {
    * 类型工具函数，没有实际逻辑作用，在 jsdoc 中使用类似 ts 的非空断言
    * @template T
    * @param {T} value
-   * @returns {T extends null | undefined ? never : T}
+   * @returns {NonNullable<T>}
    */
   assert: function assert(value) {
     if (value === undefined || value === null) throw new Error()
-    return /** @type {*} */ (value)
+    return value
   },
 
   NOOP: function () { },
@@ -303,15 +317,17 @@ var promotionUtils = {
 
   /**
    * @param {Promotion | PromotionData} promotion
+   * @returns {PromotionState}
    */
   getPromotionState: function (promotion) {
     var normalizedTime = promotionUtils.normalizePeriodTime(promotion)
     var now = Date.now()
 
-    if (now < normalizedTime.beginTime) return PromotionStates.Registering
-    else if (now < normalizedTime.endTime) return PromotionStates.Live
-    else if (now < normalizedTime.closeTime) return PromotionStates.Expired
-    else return PromotionStates.Ended
+    if (now < normalizedTime.openTime) return PromotionStates.StartIn
+    else if (now < normalizedTime.beginTime) return PromotionStates.StartIn
+    else if (now < normalizedTime.endTime) return PromotionStates.EndIn
+    else if (now < normalizedTime.closeTime) return PromotionStates.ExpiredIn
+    else return PromotionStates.Expired
   },
 
   /**
@@ -319,7 +335,11 @@ var promotionUtils = {
    * @param {{ onUpdate?: (remainingTime: number) => void, onComplete?: () => void }} options
    */
   createCountdown: function (targetTime, options) {
+    /** @type {number} */
+    var setupTimer
+
     var destroy = function () {
+      window.clearTimeout(setupTimer)
       promotionUtils.ticker.remove(handler)
     }
 
@@ -332,26 +352,17 @@ var promotionUtils = {
       }
     }
 
-    setTimeout(handler, 0);
+    setupTimer = window.setTimeout(handler, 0);
     promotionUtils.ticker.add(handler)
 
     return destroy
   },
 
-  state2RequestStatus: {
-    [PromotionStates.Registering]: 1,
-    [PromotionStates.Live]: 2,
-    [PromotionStates.Expired]: -1,
-    [PromotionStates.Ended]: 3,
-  },
-
-  /**
-   * @param {string[]} supportedLanguages 
-   * @param {string} [defaultLanguage] 
-   */
-  getLanguage: function (supportedLanguages, defaultLanguage) {
-    defaultLanguage = defaultLanguage || 'en_US'
-    return supportedLanguages.indexOf(spade.content.language) ? spade.content.language : defaultLanguage
+  // ie11 不支持计算属性
+  categoryName2RequestStatus: {
+    registering: 1,
+    live: 2,
+    ended: 3
   },
 
   /**
@@ -464,18 +475,20 @@ var promotionUtils = {
    */
   updateElementsCountdown: function (remainingTime, totalTime, $time, $progress) {
     var times = promotionUtils.getTimes(remainingTime)
-    if (times[0] === '00') times.shift()
+    var day = promotionUtils.assert(times.shift())
+    // 将 day 计算在小时内
+    times[0] = promotionUtils.padStart(Number.parseInt(times[0]) + Number.parseInt(day) * 24, 2, '0')
     var percent = Math.floor(remainingTime / totalTime * 100) + '%'
     if ($progress.css('width') !== percent) $progress.css('width', percent)
     $time.text(times.join(':'))
   },
 
-  /**
+  /**z
    * @param {object} o 
    * @param {string} k 
    * @param {any} v 
    */
-  define(o, k, v) {
+  define: function (o, k, v) {
     return Object.defineProperty(o, k, {
       value: v,
       configurable: true,
@@ -537,10 +550,14 @@ var promotionUtils = {
 
   /**
    * @param {string} gameCode 
+   * @param {boolean} [isLarge]
    * @returns 
    */
-  getImgUrl: function (gameCode) {
-    return '../../../fscommon/thumbnail/' + promotionUtils.getLanguage(["en_US", "zh_CN", "th_TH"]) + "/" + gameCode + ".png" + "?" + mm.game.config.ver;
+  getImgUrl: function (gameCode, isLarge) {
+    var url = gameCode + ".png" + "?" + mm.game.config.ver;
+    var language = promotionResourceLoader.getLanguage()
+    if(!isLarge) return '../../../fscommon/thumbnail_min/' + url;
+    return '../../../fscommon/thumbnail/' + (["en_US", "zh_CN", "th_TH"].indexOf(language) !== -1 ? language : 'en_US') + "/" + url;
   },
   /** @type {Record<string, string> | null} */
   _tournamentAllGamesCache: null,
@@ -550,7 +567,7 @@ var promotionUtils = {
   getTournamentAllGames: function (callback) {
     if (promotionUtils._tournamentAllGamesCache) return callback(promotionUtils._tournamentAllGamesCache)
     Service.create().getTournamentAllGames({
-      language: spade.content.language
+      language: promotionResourceLoader.getLanguage()
     }, function (/** @type {any} */ res) {
       if (res.code !== 0) return callback({})
       else {
@@ -563,5 +580,105 @@ var promotionUtils = {
     })
   },
   
-  soundTick: mm.Class.prototype._soundTick
+  soundTick: mm.Class.prototype._soundTick,
+
+  /**
+   * @param {JQuery<HTMLElement>} $el
+   * @param {string} eventName
+   * @param {boolean} sound
+   * @param {() => void} callback
+   */
+  clickWithAnimation: function ($el, eventName, sound, callback) {
+    if ($el.length !== 0) {
+      var animationendHandler = function () {
+        $el.removeClass('ani')
+        $el[0].addEventListener('animationend', animationendHandler)
+        callback()
+      }
+
+      $el[0].addEventListener(eventName, function () {
+        if (sound) promotionUtils.soundTick()
+        $el.addClass('ani')
+        $el[0].addEventListener('animationend', animationendHandler)
+      })
+    }
+  },
+
+  /**
+   * @template T
+   * @param {IterableIterator<T>} iter 
+   */
+  iter2Array: function (iter) {
+    /** @type T[] */
+    var arr = []
+    for(;;) {
+      var v = iter.next()
+      if (v.done) return arr
+      arr.push(v.value)
+    }
+  },
+
+  /**
+   * @param {Promotion | PromotionData} promotion
+   * @param {PromotionState} [state]
+   * @returns {PromotionCategoryName | undefined}
+   */
+  getPromotionCategoryName: function (promotion, state) {
+    if (!state) state = promotionUtils.getPromotionState(promotion)
+
+    if (promotion.name === PromotionNames.FreeSpin) {
+      if (state === PromotionStates.StartIn) {
+        return PromotionCategoryNames.Registering
+      } else if (state === PromotionStates.EndIn) {
+        return PromotionCategoryNames.Live
+      } else if (state === PromotionStates.ExpiredIn) {
+        if (/** @type {FreeSpinPromotion} */ (promotion).data.freeSpin) {
+          // 在此阶段，如果有领取资格，也会在 live 标签页展示
+          return PromotionCategoryNames.Live
+        }
+      }
+    } else  {
+      // PromotionNames.Tournament
+      if (state === PromotionStates.StartIn) return PromotionCategoryNames.Registering
+      else if (state === PromotionStates.EndIn) return PromotionCategoryNames.Live
+      else return PromotionCategoryNames.Ended
+    }
+  },
+
+  /**
+   * @param {PromotionState} state
+   * @returns {string}
+   */
+  getPromotionStateLocaleString: function (state) {
+    var typeArr = Locale.getString("TXT_PROMOTION_STATUS_TYPE").split("%n%")
+    if (state === PromotionStates.StartIn) {
+      return typeArr[0]
+    } else if (state === PromotionStates.EndIn) {
+      return typeArr[1]
+    } else if (state === PromotionStates.ExpiredIn) {
+      return typeArr[2]
+    } else if (state === PromotionStates.Expired) {
+      return typeArr[3]
+    } else {
+      return ''
+    }
+  },
+
+  /**
+   * @param {((done: () => void) => void)[]} tasks
+   * @param {() => void} callback
+   */
+  all: function (tasks, callback) {
+    var total = tasks.length
+    if (total === 0) return callback()
+    
+    var current = 0
+    var done = function () {
+      current++
+      if (current >= total) callback()
+    }
+    tasks.forEach(function (task) {
+      task(done)
+    })
+  }
 }
