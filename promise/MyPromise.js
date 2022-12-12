@@ -2,60 +2,62 @@ const PENDING = Symbol('PENDING')
 const FULFILLED = Symbol('FULFILLED')
 const REJECTED = Symbol('REJECTED')
 
-function resolvePromise(promise, x, resolve, reject) {
-  // 2.3.1 如果 promise 和 x 指向同一对象，reject promise with a TypeError as the reason.
-  if (x === promise) {
+function resolvePromise(myPromise2, x, resolve, reject) {
+  // 2.3.1 如果 myPromise2 和 x 指向同一对象，则以一个 TypeError 为 reason 来 reject myPromise1
+  if (x === myPromise2) {
     return reject(new TypeError('巴拉巴拉'))
   }
-  // 2.3.2 如果 x 为 Promise ，则使 promise 采用它的状态
+  // 2.3.2 如果 x 是 MyPromise 实例，则使 myPromise2 采用 x 的状态，具体如下
   if (x instanceof MyPromise) {
-    // 2.3.2.1 如果 x 处于 pending， promise 需保持挂起，知道 x 被 fulfilled 或 rejected
-    // - 2.3.2.2 If/when x is fulfilled, fulfill promise with the same value.
-    // - 2.3.2.3 If/when x is rejected, reject promise with the same reason.
+    // 2.3.2.1 如果 x 处于 pending， myPromise2 需保持挂起，直到 x 被 fulfilled 或 rejected
     if (x.state === PENDING) {
       x.then(
         y => {
-          resolvePromise(promise, y, resolve, reject)
+          // 将 value: y 再调用 resolvePromise
+          resolvePromise(myPromise2, y, resolve, reject)
         },
         reject
       )
     } else if (x.state === FULFILLED) {
+      // 2.3.2.2 当 x 状态为 fulfilled 时，以 x.result 为 value 来 resolve myPromise1
       resolve(x.result)
     } else {
       // rejected
+      // 2.3.2.3 当 x 状态为 rejected, ，以 x.result 为 reason 来 reject myPromise1
       reject(x.result)
     }
   } else if (typeof x === 'function' || (x !== null && typeof x === 'object')) {
-    // 2.3.3 如果 x 为 object or function
-    // - 2.3.3.1 Let then be x.then
+    // 2.3.3 如果是 object or function
+
+    // 2.3.3.1 定义变量 `then`，尝试赋值为 `x.then`
+    // 2.3.3.2 如果取 `x.then` 的值时抛出异常 `e` ，则以 `e` 为据因 reject myPromise1
     let then
     try {
       then = x.then
     } catch (e) {
-      // 2.3.3.2 如果取 x.then 的值时抛出错误 e ，则以 e 为据因拒绝 promise
       return reject(e)
     }
-    // 2.3.3.3 
-    // If then is a function, call it with x as this, 
-    // first argument resolvePromise, and second argument rejectPromise
+    // 2.3.3.3 如果 `then` 是一个函数，调用 `then` 并修改 this 为 `x`，第一个参数为 _resolvePromise，第二个参数为 _rejectPromise
     if (typeof then === 'function') {
       let called = false
 
       try {
         then.call(
           x,
-          // 2.3.3.3.1 如果 resolvePromise 以值 y 为参数被调用，则运行 [[Resolve]](promise, y)
+          // 2.3.3.3.1 如果 _resolvePromise 以值 y 为参数被调用，则运行 [[Resolve]](myPromise2, y)
           y => {
+            // 2.3.3.3.3 如果 _resolvePromise 和 _rejectPromise 均被调用，
+            // 或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
             if (!called) {
-              // 2.3.3.3.3 如果 resolvePromise 和 rejectPromise 均被调用，或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
               called = true
-              resolvePromise(promise, y, resolve, reject)
+              resolvePromise(myPromise2, y, resolve, reject)
             }
           },
-          // 2.3.3.3.2 如果 rejectPromise 以据因 r 为参数被调用，则以据因 r 拒绝 promise
+          // 2.3.3.3.2 如果 _rejectPromise 以值 r 为参数被调用，则以 r 为拒因 reject myPromise1
           r => {
+            // 2.3.3.3.3 如果 _resolvePromise 和 _rejectPromise 均被调用，
+            // 或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
             if (!called) {
-              // 2.3.3.3.3 如果 resolvePromise 和 rejectPromise 均被调用，或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
               called = true
               reject(r)
             }
@@ -63,26 +65,27 @@ function resolvePromise(promise, x, resolve, reject) {
         )
       } catch (e) {
         // 2.3.3.3.4 如果调用 then 方法抛出了异常 e
-
-        // 2.3.3.3.4.1 如果 resolvePromise 或 rejectPromise 已经被调用，则忽略之
+        // 2.3.3.3.4.1 如果 _resolvePromise 或 _rejectPromise 已经被调用，则忽略之
         if (called) return
-        // 2.3.3.3.4.2 否则以 e 为据因拒绝 promise
+        // 2.3.3.3.4.2 否则以 `e` 为据因 reject myPromise1
         reject(e)
       }
     } else {
-      // 2.3.3.4 如果 then 不是函数，以 x 为参数 resolve promise
+      // 2.3.3.4 如果 `then` 不是函数，以 x 为参数 resolve myPromise1
       resolve(x)
     }
   } else {
-    // 2.3.4 如果 x 不为对象或者函数，以 x 为参数 resolve promise
+    // 2.3.4 如果 x 不为对象或者函数，以 x 为参数 resolve myPromise1
     resolve(x)
   }
-
 }
 
 class MyPromise {
   state = PENDING
+
+  // value or reason
   result
+
   onFulfilledCallbacks = []
   onRejectedCallbacks = []
 
@@ -92,78 +95,82 @@ class MyPromise {
 
     try {
       func(this.resolve, this.reject)
-    } catch (err) {
-      this.reject(err)
+    } catch (e) {
+      this.reject(e)
     }
   }
 
-  resolve(result) {
+  resolve(value) {
     if (this.state === PENDING) {
-      // 在 Node 环境中实现，借助 API 实现微任务
+      // 2.2.4
       process.nextTick(() => {
-        this.result = result
+        this.result = value
         this.state = FULFILLED
-        this.onFulfilledCallbacks.splice(0).forEach(cb => cb(this.result))
+        this.onFulfilledCallbacks.splice(0).forEach(cb => cb(value))
       })
     }
   }
 
   reject(reason) {
-    if (this.state = PENDING) {
-      // 在 Node 环境中实现，借助 API 实现微任务
+    if (this.state === PENDING) {
+      // 2.2.4
       process.nextTick(() => {
-        this.state = REJECTED
         this.result = reason
-        this.onRejectedCallbacks.splice(0).forEach(cb => cb(this.result))
+        this.state = REJECTED
+        this.onRejectedCallbacks.splice(0).forEach(cb => cb(reason))
       })
     }
   }
 
   then(onFulfilled, onRejected) {
+    // 2.2.7.3
     onFulfilled = typeof onFulfilled === 'function' ? onFulfilled : v => v
+    // 2.2.7.4
     onRejected = typeof onRejected === 'function' ? onRejected : e => { throw e }
 
-    const promise2 = new MyPromise((resolve, reject) => {
-      const handleFulfilled = result => {
+    const myPromise2 = new MyPromise((resolve, reject) => {
+      const handleFulfilled = value => {
         try {
-          const x = onFulfilled(result)
-          // 2.2.7.1：如果 onFulfilled 或 onRejected 返回一个值 x （resolvePromise 处理）
-          resolvePromise(promise2, x, resolve, reject)
-        } catch (err) {
-          // 2.2.7.2 如果 onFulfilled 或者 onRejected 抛出一个异常 e ，则 promise2 必须拒绝执行，并返回拒因 e
-          reject(err)
+          const x = onFulfilled(value)
+          // 2.2.7.1
+          resolvePromise(myPromise2, x, resolve, reject)
+        } catch (e) {
+          // 2.2.7.2
+          reject(e)
         }
       }
 
       const handleRejected = reason => {
         try {
-          // 2.2.7.2 如果 onFulfilled 或者 onRejected 抛出一个异常 e ，则 promise2 必须拒绝执行，并返回拒因 e
           const x = onRejected(reason)
-          // 2.2.7.1：如果 onFulfilled 或 onRejected 返回一个值 x （resolvePromise 处理）
-          resolvePromise(promise2, x, resolve, reject)
+          // 2.2.7.1
+          resolvePromise(myPromise2, x, resolve, reject)
         } catch (err) {
+          // 2.2.7.2
           reject(err)
         }
       }
 
-      if (this.state === FULFILLED) {
-        // 在 Node 环境中实现，借助 API 实现微任务
+      if (this.state === PENDING) {
+        this.onFulfilledCallbacks.push(handleFulfilled)
+        this.onRejectedCallbacks.push(handleRejected)
+      } else if (this.state === FULFILLED) {
+        // 2.2.4
         process.nextTick(() => {
           handleFulfilled(this.result)
         })
-      } else if (this.state === REJECTED) {
-        // 在 Node 环境中实现，借助 API 实现微任务
+      } else {
+        // rejected
+
+        // 2.2.4
         process.nextTick(() => {
           handleRejected(this.result)
         })
-      } else {
-        // pending
-        this.onFulfilledCallbacks.push(handleFulfilled)
-        this.onRejectedCallbacks.push(handleRejected)
       }
     })
 
-    return promise2
+    // 2.2.7
+    return myPromise2
   }
 }
 
