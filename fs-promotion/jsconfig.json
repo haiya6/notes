@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "lib": [
+      "DOM",
+      "ESNext"
+    ],
+    "strict": true,
+    "baseUrl": ".",
+    "strictFunctionTypes": false
+  },
+  "include": [
+    "**/*"
+  ]
+}
