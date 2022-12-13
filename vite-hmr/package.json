@@ -1,0 +1,9 @@
+{
+  "name": "vite-hmr",
+  "scripts": {
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "vite": "^4.0.1"
+  }
+}
